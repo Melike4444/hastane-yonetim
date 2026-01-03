@@ -1,0 +1,77 @@
+package com.hastane.hastane_yonetim.integration;
+
+import com.hastane.hastane_yonetim.TestcontainersConfiguration;
+import com.hastane.hastane_yonetim.entity.Doktor;
+import com.hastane.hastane_yonetim.entity.Hasta;
+import com.hastane.hastane_yonetim.repository.DoktorRepository;
+import com.hastane.hastane_yonetim.repository.HastaRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@Import(TestcontainersConfiguration.class)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureMockMvc
+class MuayeneApiIntegrationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private DoktorRepository doktorRepository;
+
+    @Autowired
+    private HastaRepository hastaRepository;
+
+    private Doktor doktor;
+    private Hasta hasta;
+
+    @BeforeEach
+    void setUp() {
+        hastaRepository.deleteAll();
+        doktorRepository.deleteAll();
+
+        doktor = doktorRepository.save(
+                Doktor.builder()
+                        .ad("Ahmet")
+                        .soyad("Demir")
+                        .brans("Kardiyoloji")
+                        .build()
+        );
+
+        hasta = hastaRepository.save(
+                Hasta.builder()
+                        .ad("Ali")
+                        .soyad("Yılmaz")
+                        .telefon("05550000000")
+                        .build()
+        );
+    }
+
+    @Test
+    void createMuayene_returns201() throws Exception {
+        String json = """
+                {
+                  "randevuId": 1,
+                  "teshis": "Grip",
+                  "tedavi": "İstirahat",
+                  "sikayet": "Baş ağrısı",
+                  "notlar": "2 gün kontrol"
+                }
+                """;
+
+        mockMvc.perform(post("/api/muayeneler")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isCreated());
+    }
+}
+

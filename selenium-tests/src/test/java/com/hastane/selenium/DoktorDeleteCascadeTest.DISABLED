@@ -1,0 +1,24 @@
+package com.hastane.selenium;
+
+import org.junit.jupiter.api.Test;
+import org.openqa.selenium.By;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+public class DoktorDeleteCascadeTest extends BaseUiTest {
+
+    @Test
+    void doktorSilince_randevularDaSilinir() {
+        driver.get(baseUrl + "/");
+
+        // (Sayfanda “ilk doktoru sil” gibi bir buton olmalı)
+        // Örnek id: btnDoktorSilFirst
+        driver.findElement(By.id("btnDoktorSilFirst")).click();
+
+        String doktorText = driver.findElement(By.id("doktorList")).getText();
+        String randevuText = driver.findElement(By.id("randevuList")).getText();
+
+        assertTrue(doktorText.trim().isEmpty(), "Doktorlar boş değil: " + doktorText);
+        assertTrue(randevuText.trim().isEmpty(), "Randevular boş değil: " + randevuText);
+    }
+}

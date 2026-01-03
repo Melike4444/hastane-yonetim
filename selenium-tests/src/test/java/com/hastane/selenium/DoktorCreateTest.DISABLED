@@ -1,0 +1,32 @@
+package com.hastane.selenium;
+
+import org.junit.jupiter.api.Test;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebElement;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+public class DoktorCreateTest extends BaseUiTest {
+
+    @Test
+    void doktorEkle_listedeGorunur() {
+        driver.get(baseUrl + "/");
+
+        driver.findElement(By.id("doktorAd")).clear();
+        driver.findElement(By.id("doktorAd")).sendKeys("Ahmet");
+
+        driver.findElement(By.id("doktorSoyad")).clear();
+        driver.findElement(By.id("doktorSoyad")).sendKeys("Demir");
+
+        driver.findElement(By.id("doktorBrans")).clear();
+        driver.findElement(By.id("doktorBrans")).sendKeys("Kardiyoloji");
+
+        driver.findElement(By.id("btnDoktorEkle")).click();
+
+        WebElement doktorList = driver.findElement(By.id("doktorList"));
+        String text = doktorList.getText();
+
+        assertTrue(text.contains("Ahmet") && text.contains("Demir"),
+                "Doktor listede görünmedi! Liste içeriği: " + text);
+    }
+}

@@ -1,0 +1,44 @@
+package com.hastane.selenium;
+
+import org.junit.jupiter.api.Test;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.Select;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+public class RandevuCreateTest extends BaseUiTest {
+
+    @Test
+    void hastaEkle_randevuOlustur_listedeGorunur() {
+        driver.get(baseUrl + "/");
+
+        // Hasta ekle
+        driver.findElement(By.id("hastaAd")).clear();
+        driver.findElement(By.id("hastaAd")).sendKeys("Ali");
+
+        driver.findElement(By.id("hastaSoyad")).clear();
+        driver.findElement(By.id("hastaSoyad")).sendKeys("Yilmaz");
+
+        driver.findElement(By.id("hastaTelefon")).clear();
+        driver.findElement(By.id("hastaTelefon")).sendKeys("05551112233");
+
+        driver.findElement(By.id("btnHastaEkle")).click();
+
+        // Randevu formu
+        driver.findElement(By.id("randevuTarihSaat")).clear();
+        driver.findElement(By.id("randevuTarihSaat")).sendKeys("2026-01-10T14:30");
+
+        // select'ler
+        new Select(driver.findElement(By.id("randevuHasta"))).selectByIndex(0);
+        new Select(driver.findElement(By.id("randevuDoktor"))).selectByIndex(0);
+
+        driver.findElement(By.id("btnRandevuOlustur")).click();
+
+        WebElement randevuList = driver.findElement(By.id("randevuList"));
+        String text = randevuList.getText();
+
+        assertTrue(text.contains("Ali") && text.contains("Yilmaz"),
+                "Randevu listede görünmedi! Liste içeriği: " + text);
+    }
+}
