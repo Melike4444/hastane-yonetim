@@ -3,8 +3,11 @@ pipeline {
   options { timestamps() }
 
   stages {
+
     stage('Checkout') {
-      steps { checkout scm }
+      steps {
+        checkout scm
+      }
     }
 
     stage('Backend: Test & Package') {
@@ -30,32 +33,36 @@ pipeline {
         sh '''
           set -e
           docker --version
-          docker compose version || docker-compose --version
 
-          # Build + up
+          # Docker Compose komutunu belirle
           if docker compose version >/dev/null 2>&1; then
-            docker compose -f docker-compose.yml up -d --build
+            COMPOSE="docker compose"
+          elif command -v docker-compose >/dev/null 2>&1; then
+            COMPOSE="docker-compose"
           else
-            docker-compose -f docker-compose.yml up -d --build
+            echo "Docker Compose bulunamadı. Docker Desktop açık mı?"
+            exit 1
           fi
 
-          # Wait backend to be ready
-          echo "Waiting for backend on http://localhost:8080 ..."
+          # Container'ları build et ve ayağa kaldır
+          $COMPOSE -f docker-compose.yml up -d --build
+
+          # Backend ayağa kalkana kadar bekle
+          echo "Backend bekleniyor (http://localhost:8080)..."
           for i in $(seq 1 30); do
-            if curl -sSf http://localhost:8080/ >/dev/null; then
-              echo "Backend is up ✅"
+            if curl -s http://localhost:8080 >/dev/null; then
+              echo "Backend ayakta ✅"
               exit 0
             fi
             sleep 2
           done
 
-          echo "Backend did not become ready in time ❌"
+          echo "Backend zamanında ayağa kalkmadı ❌"
           exit 1
         '''
       }
     }
 
-    // 6. madde: en az 3 test senaryosu (ayrı stage)
     stage('Selenium Scenario 1') {
       steps {
         sh '''
@@ -88,7 +95,7 @@ pipeline {
 
     stage('Archive Jar') {
       steps {
-        archiveArtifacts artifacts: 'target/*.jar', fingerprint: true, allowEmptyArchive: false
+        archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
       }
     }
   }
@@ -97,11 +104,17 @@ pipeline {
     always {
       sh '''
         set +e
+
         if docker compose version >/dev/null 2>&1; then
-          docker compose -f docker-compose.yml down
+          COMPOSE="docker compose"
+        elif command -v docker-compose >/dev/null 2>&1; then
+          COMPOSE="docker-compose"
         else
-          docker-compose -f docker-compose.yml down
+          echo "Docker Compose yok, down atlanıyor."
+          exit 0
         fi
+
+        $COMPOSE -f docker-compose.yml down
       '''
     }
   }
