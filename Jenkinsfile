@@ -27,7 +27,7 @@ pipeline {
       }
     }
 
-    // Docker varsa çalışır, yoksa pipeline bozulmaz
+    // Docker bu Jenkins ortamında yoksa pipeline bozulmasın
     stage('Docker: Build & Up (Optional)') {
       steps {
         sh '''
@@ -92,22 +92,24 @@ pipeline {
         '''
       }
     }
-stage('Selenium Scenario 4') {
-  steps {
-    sh '''
-      set -e
-      ./mvnw -f selenium-tests/pom.xml -Dtest=Senaryo4_UiSmokeTest test
-    '''
-  }
-stage('Selenium Scenario 5') {
-  steps {
-    sh '''
-      set -e
-      ./mvnw -f selenium-tests/pom.xml -Dtest=Senaryo5_HastalarEndpointTest test
-    '''
-  }
-}
-}
+
+    stage('Selenium Scenario 4') {
+      steps {
+        sh '''
+          set -e
+          ./mvnw -f selenium-tests/pom.xml -Dtest=Senaryo4_UiSmokeTest test
+        '''
+      }
+    }
+
+    stage('Selenium Scenario 5') {
+      steps {
+        sh '''
+          set -e
+          ./mvnw -f selenium-tests/pom.xml -Dtest=Senaryo5_HastalarEndpointTest test
+        '''
+      }
+    }
 
     stage('Archive Jar') {
       steps {
