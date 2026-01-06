@@ -1,7 +1,6 @@
 package com.hastane.selenium;
 
 import org.junit.jupiter.api.Test;
-import org.openqa.selenium.WebDriver;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -9,12 +8,10 @@ public class Senaryo4_UiSmokeTest extends BaseUiTest {
 
     @Test
     void uygulamaAcilabiliyorMu() {
-        WebDriver driver = getDriver();
-        String baseUrl = getBaseUrl();
+        // BaseUiTest içinde driver zaten setUp() ile oluşuyor
+        driver.get("http://localhost:8080/");
 
-        driver.get(baseUrl);
-
-        // Sayfa gerçekten açıldı mı?
+        // Sayfa başlığı geldi mi?
         assertNotNull(driver.getTitle(), "Sayfa başlığı null, UI açılmamış olabilir");
     }
 }
