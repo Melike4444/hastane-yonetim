@@ -92,6 +92,14 @@ pipeline {
         '''
       }
     }
+stage('Selenium Scenario 4') {
+  steps {
+    sh '''
+      set -e
+      ./mvnw -f selenium-tests/pom.xml -Dtest=Senaryo4_UiSmokeTest test
+    '''
+  }
+}
 
     stage('Archive Jar') {
       steps {
