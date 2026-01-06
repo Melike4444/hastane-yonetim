@@ -99,6 +99,14 @@ stage('Selenium Scenario 4') {
       ./mvnw -f selenium-tests/pom.xml -Dtest=Senaryo4_UiSmokeTest test
     '''
   }
+stage('Selenium Scenario 5') {
+  steps {
+    sh '''
+      set -e
+      ./mvnw -f selenium-tests/pom.xml -Dtest=Senaryo5_HastalarEndpointTest test
+    '''
+  }
+}
 }
 
     stage('Archive Jar') {
