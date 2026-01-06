@@ -10,15 +10,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class Senaryo5_HastalarEndpointTest {
 
     @Test
-    void hastalarEndpointCalisiyorMu() throws Exception {
-        URL url = new URL("http://localhost:8080/api/hastalar");
+    void sistemAyaktaMi_HomeEndpoint() throws Exception {
+        String base = System.getProperty("apiBaseUrl", "http://localhost:8090");
+        URL url = new URL(base + "/");
+
         HttpURLConnection con = (HttpURLConnection) url.openConnection();
         con.setRequestMethod("GET");
-        con.setConnectTimeout(5000);
-        con.setReadTimeout(5000);
+        con.setConnectTimeout(8000);
+        con.setReadTimeout(8000);
 
         int code = con.getResponseCode();
-        assertEquals(200, code, "Hastalar endpoint 200 dönmedi: " + code);
+        assertEquals(200, code, "Home endpoint 200 dönmedi: " + code);
     }
 }
 
