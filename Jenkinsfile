@@ -1,4 +1,4 @@
-pipeline {
+kpipeline {
   agent any
   options { timestamps() }
 
@@ -24,45 +24,6 @@ pipeline {
     stage('JUnit Report') {
       steps {
         junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
-      }
-    }
-
-    // Docker bu Jenkins ortamında yoksa pipeline bozulmasın
-    stage('Docker: Build & Up (Optional)') {
-      steps {
-        sh '''
-          set +e
-
-          if ! command -v docker >/dev/null 2>&1; then
-            echo "Docker bu Jenkins ortamında yok → Docker stage SKIP ✅"
-            exit 0
-          fi
-
-          docker --version
-
-          if docker compose version >/dev/null 2>&1; then
-            COMPOSE="docker compose"
-          elif command -v docker-compose >/dev/null 2>&1; then
-            COMPOSE="docker-compose"
-          else
-            echo "Docker Compose yok → Docker stage SKIP ✅"
-            exit 0
-          fi
-
-          $COMPOSE -f docker-compose.yml up -d --build
-
-          echo "Backend bekleniyor (http://localhost:8080)..."
-          for i in $(seq 1 20); do
-            if curl -s http://localhost:8080 >/dev/null; then
-              echo "Backend ayakta ✅"
-              exit 0
-            fi
-            sleep 2
-          done
-
-          echo "Backend geç açıldı ama pipeline devam ediyor ✅"
-          exit 0
-        '''
       }
     }
 
@@ -106,7 +67,30 @@ pipeline {
       steps {
         sh '''
           set -e
-          ./mvnw -f selenium-tests/pom.xml -Dtest=Senaryo5_HastalarEndpointTest test
+
+          APP_PORT=8090
+          JAR_FILE=$(ls -1 target/*.jar | head -n 1)
+
+          echo "Backend jar: $JAR_FILE"
+          echo "Backend $APP_PORT portunda başlatılıyor..."
+
+          java -jar "$JAR_FILE" --server.port=$APP_PORT > backend_jenkins.log 2>&1 &
+          APP_PID=$!
+
+          trap "echo 'Backend kapatılıyor...'; kill $APP_PID >/dev/null 2>&1 || true" EXIT
+
+          echo "Backend hazır mı kontrol ediliyor..."
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/api/hastalar | grep -q "200"; then
+              echo "Backend ayakta ✅"
+              break
+            fi
+            sleep 1
+          done
+
+          ./mvnw -f selenium-tests/pom.xml \
+            -Dtest=Senaryo5_HastalarEndpointTest \
+            -DapiBaseUrl=http://localhost:$APP_PORT test
         '''
       }
     }
