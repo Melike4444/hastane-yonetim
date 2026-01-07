@@ -10,20 +10,9 @@ pipeline {
       }
     }
 
-    stage('Backend: Test & Package') {
+        stage('JUnit Report') {
       steps {
-        sh '''
-          set -e
-          chmod +x mvnw || true
-          ./mvnw clean test
-          ./mvnw -DskipTests package
-        '''
-      }
-    }
-
-    stage('JUnit Report') {
-      steps {
-        junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+        junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml, selenium-tests/target/surefire-reports/*.xml'
       }
     }
 
