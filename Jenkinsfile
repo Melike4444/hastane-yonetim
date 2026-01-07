@@ -2,12 +2,11 @@ pipeline {
   agent any
 
   environment {
-    DOCKER = "/usr/local/bin/docker"
+    DOCKER = "/usr/bin/docker"
+    PATH = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
   }
 
-  options {
-    timestamps()
-  }
+  options { timestamps() }
 
   stages {
 
@@ -17,13 +16,47 @@ pipeline {
       }
     }
 
+    stage('Sanity: Tools') {
+      steps {
+        sh '''
+          set -e
+          echo "PATH=$PATH"
+          which java || true
+          java -version || true
+          ./mvnw -v
+          ${DOCKER} --version
+          ${DOCKER} compose version
+        '''
+      }
+    }
+
+    stage('Fix Docker Credentials (Jenkins)') {
+      steps {
+        sh '''
+          set -e
+          # Jenkins içinde docker build sırasında "docker-credential-desktop" hatasını engelle
+          mkdir -p "$WORKSPACE/.docker"
+          cat > "$WORKSPACE/.docker/config.json" <<'JSON'
+          { "auths": {} }
+JSON
+          echo "Created $WORKSPACE/.docker/config.json"
+          cat "$WORKSPACE/.docker/config.json"
+        '''
+      }
+    }
+
     stage('Backend: Unit Tests') {
       steps {
         sh '''
           set -e
-          chmod +x mvnw || true
+          chmod +x mvnw
           ./mvnw -Dtest='!**/integration/**' test
         '''
+      }
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+        }
       }
     }
 
@@ -31,9 +64,14 @@ pipeline {
       steps {
         sh '''
           set -e
-          chmod +x mvnw || true
+          chmod +x mvnw
           ./mvnw -Dtest='**/integration/**' test
         '''
+      }
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+        }
       }
     }
 
@@ -41,16 +79,9 @@ pipeline {
       steps {
         sh '''
           set -e
-          chmod +x mvnw || true
+          chmod +x mvnw
           ./mvnw -DskipTests package
         '''
-      }
-    }
-
-    stage('JUnit Report') {
-      steps {
-        junit allowEmptyResults: true,
-              testResults: 'target/surefire-reports/*.xml, selenium-tests/target/surefire-reports/*.xml'
       }
     }
 
@@ -59,59 +90,26 @@ pipeline {
         sh '''
           set -e
           echo "Docker compose ile sistem ayağa kaldırılıyor..."
-          /usr/local/bin/docker compose -f docker-compose.yml up -d --build
+          export DOCKER_CONFIG="$WORKSPACE/.docker"
+          ${DOCKER} compose -f docker-compose.yml up -d --build
+          ${DOCKER} ps
         '''
       }
     }
 
-    stage('Selenium Scenario 1') {
+    stage('Selenium Tests') {
       steps {
         sh '''
           set -e
-          ./mvnw -f selenium-tests/pom.xml \
-            -Dtest=Senaryo1_UygulamaAciliyorMuTest test
+          cd selenium-tests
+          chmod +x ../mvnw
+          ../mvnw -q -DskipTests=false test
         '''
       }
-    }
-
-    stage('Selenium Scenario 2') {
-      steps {
-        sh '''
-          set -e
-          ./mvnw -f selenium-tests/pom.xml \
-            -Dtest=Senaryo2_DoktorlarEndpointTest test
-        '''
-      }
-    }
-
-    stage('Selenium Scenario 3') {
-      steps {
-        sh '''
-          set -e
-          ./mvnw -f selenium-tests/pom.xml \
-            -Dtest=Senaryo3_RandevularEndpointTest test
-        '''
-      }
-    }
-
-    stage('Selenium Scenario 4') {
-      steps {
-        sh '''
-          set -e
-          ./mvnw -f selenium-tests/pom.xml \
-            -Dtest=Senaryo4_UiSmokeTest test
-        '''
-      }
-    }
-
-    stage('Selenium Scenario 5') {
-      steps {
-        sh '''
-          set -e
-          ./mvnw -f selenium-tests/pom.xml \
-            -Dtest=Senaryo5_HastalarEndpointTest \
-            -DapiBaseUrl=http://localhost:8080 test
-        '''
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
+        }
       }
     }
 
@@ -119,20 +117,22 @@ pipeline {
       steps {
         sh '''
           set +e
-          /usr/local/bin/docker compose -f docker-compose.yml down -v --remove-orphans
+          export DOCKER_CONFIG="$WORKSPACE/.docker"
+          ${DOCKER} compose -f docker-compose.yml down -v --remove-orphans
         '''
       }
     }
 
-  }
+  } // stages
 
   post {
     always {
       sh '''
         set +e
-        /usr/local/bin/docker compose -f docker-compose.yml down || true
+        echo "Post cleanup: docker down"
+        export DOCKER_CONFIG="$WORKSPACE/.docker"
+        ${DOCKER} compose -f docker-compose.yml down -v --remove-orphans
       '''
     }
   }
 }
-
