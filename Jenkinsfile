@@ -10,9 +10,63 @@ pipeline {
       }
     }
 
-        stage('JUnit Report') {
+    stage('Backend: Unit Tests') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw || true
+          ./mvnw -Dtest='!**/integration/**' test
+        '''
+      }
+    }
+
+    stage('Backend: Integration Tests') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw || true
+          ./mvnw -Dtest='**/integration/**' test
+        '''
+      }
+    }
+
+    stage('Backend: Package') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw || true
+          ./mvnw -DskipTests package
+        '''
+      }
+    }
+
+    stage('JUnit Report') {
       steps {
         junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml, selenium-tests/target/surefire-reports/*.xml'
+      }
+    }
+
+    stage('Docker Up') {
+      steps {
+        sh '''
+          set -e
+          echo "Docker compose ile sistem ayağa kaldırılıyor..."
+          docker compose -f docker-compose.yml up -d --build
+
+          echo "Backend hazır mı kontrol ediliyor (http://localhost:8080/api/hastalar)?"
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/hastalar || true)
+            if [ "$code" = "200" ]; then
+              echo "Backend ayakta ✅"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Backend 60 saniyede ayağa kalkmadı ❌"
+          docker compose -f docker-compose.yml logs --no-color || true
+          exit 1
+        '''
       }
     }
 
@@ -56,30 +110,18 @@ pipeline {
       steps {
         sh '''
           set -e
-
-          APP_PORT=8090
-          JAR_FILE=$(ls -1 target/*.jar | head -n 1)
-
-          echo "Backend jar: $JAR_FILE"
-          echo "Backend $APP_PORT portunda başlatılıyor..."
-
-          java -jar "$JAR_FILE" --server.port=$APP_PORT > backend_jenkins.log 2>&1 &
-          APP_PID=$!
-
-          trap "echo 'Backend kapatılıyor...'; kill $APP_PID >/dev/null 2>&1 || true" EXIT
-
-          echo "Backend hazır mı kontrol ediliyor..."
-          for i in $(seq 1 30); do
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/api/hastalar | grep -q "200"; then
-              echo "Backend ayakta ✅"
-              break
-            fi
-            sleep 1
-          done
-
           ./mvnw -f selenium-tests/pom.xml \
             -Dtest=Senaryo5_HastalarEndpointTest \
-            -DapiBaseUrl=http://localhost:$APP_PORT test
+            -DapiBaseUrl=http://localhost:8080 test
+        '''
+      }
+    }
+
+    stage('Docker Down') {
+      steps {
+        sh '''
+          set +e
+          docker compose -f docker-compose.yml down -v --remove-orphans
         '''
       }
     }
@@ -97,13 +139,12 @@ pipeline {
         set +e
         if command -v docker >/dev/null 2>&1; then
           if docker compose version >/dev/null 2>&1; then
-            docker compose -f docker-compose.yml down
+            docker compose -f docker-compose.yml down -v --remove-orphans
           elif command -v docker-compose >/dev/null 2>&1; then
-            docker-compose -f docker-compose.yml down
+            docker-compose -f docker-compose.yml down -v
           fi
         fi
       '''
     }
   }
 }
-
