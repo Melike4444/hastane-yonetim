@@ -25,15 +25,19 @@ public class DoktorController {
 
     @PostMapping
     public ResponseEntity<Doktor> create(@Valid @RequestBody DoktorRequest request) {
-
         Doktor doktor = doktorService.create(
                 request.getAd(),
                 request.getSoyad(),
                 request.getBrans(),
                 request.getDepartmentId()
         );
-
         return ResponseEntity.status(HttpStatus.CREATED).body(doktor);
     }
-}
 
+    // ✅ SİLME ENDPOINTİ
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        doktorService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+}

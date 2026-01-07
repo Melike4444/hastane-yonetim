@@ -1,10 +1,12 @@
 import { useState } from "react";
+
 import Dashboard from "./pages/Dashboard";
 import HastalarPage from "./pages/HastalarPage";
 import DoktorlarPage from "./pages/DoktorlarPage";
+import BolumlerPage from "./pages/BolumlerPage";
 import RandevularPage from "./pages/RandevularPage";
 import MuayenelerPage from "./pages/MuayenelerPage";
-import BolumlerPage from "./pages/BolumlerPage";
+import RecetelerPage from "./pages/RecetelerPage";
 
 const items = [
   { key: "dashboard", label: "Dashboard" },
@@ -13,7 +15,36 @@ const items = [
   { key: "bolumler", label: "Bölümler" },
   { key: "randevular", label: "Randevular" },
   { key: "muayeneler", label: "Muayeneler" },
+  { key: "receteler", label: "Reçeteler" },
 ];
+
+function Sidebar({ active, setActive }) {
+  return (
+    <aside className="w-64 border-r border-zinc-200 bg-white">
+      <div className="p-4 border-b border-zinc-100">
+        <div className="text-lg font-semibold text-zinc-900">Hastane Yönetim</div>
+        <div className="text-xs text-zinc-500">React + Tailwind • Premium UI</div>
+      </div>
+
+      <nav className="p-2">
+        {items.map((it) => (
+          <button
+            key={it.key}
+            onClick={() => setActive(it.key)}
+            className={[
+              "w-full text-left px-3 py-2 rounded-xl mb-1 text-sm",
+              active === it.key
+                ? "bg-zinc-900 text-white"
+                : "text-zinc-700 hover:bg-zinc-100",
+            ].join(" ")}
+          >
+            {it.label}
+          </button>
+        ))}
+      </nav>
+    </aside>
+  );
+}
 
 function Placeholder({ title }) {
   return (
@@ -28,54 +59,27 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-zinc-50">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-zinc-200 p-4">
-        <h1 className="mb-6 text-lg font-bold">Hastane Yönetim</h1>
+      <Sidebar active={active} setActive={setActive} />
 
-        <nav className="space-y-2">
-          {items.map((it) => {
-            const isActive = it.key === active;
-            return (
-              <button
-                key={it.key}
-                onClick={() => setActive(it.key)}
-                className={
-                  "w-full text-left rounded-xl px-4 py-2 text-sm " +
-                  (isActive
-                    ? "bg-zinc-900 text-white"
-                    : "text-zinc-700 hover:bg-zinc-100")
-                }
-              >
-                {it.label}
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
-
-      {/* Content */}
-      <main className="flex-1 p-6">
+      <main className="flex-1">
         {active === "dashboard" && <Dashboard />}
         {active === "hastalar" && <HastalarPage />}
         {active === "doktorlar" && <DoktorlarPage />}
         {active === "bolumler" && <BolumlerPage />}
         {active === "randevular" && <RandevularPage />}
         {active === "muayeneler" && <MuayenelerPage />}
+        {active === "receteler" && <RecetelerPage />}
 
-        {![
-          "dashboard",
-          "hastalar",
-          "doktorlar",
-          "bolumler",
-          "randevular",
-          "muayeneler",
-        ].includes(active) && (
-          <Placeholder
-            title={items.find((x) => x.key === active)?.label}
-          />
-        )}
+        {active !== "dashboard" &&
+          active !== "hastalar" &&
+          active !== "doktorlar" &&
+          active !== "bolumler" &&
+          active !== "randevular" &&
+          active !== "muayeneler" &&
+          active !== "receteler" && (
+            <Placeholder title={items.find((x) => x.key === active)?.label} />
+          )}
       </main>
     </div>
   );
 }
-

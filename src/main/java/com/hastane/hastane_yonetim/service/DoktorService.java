@@ -20,13 +20,9 @@ public class DoktorService {
         return doktorRepository.findAll();
     }
 
-    public Doktor save(Doktor doktor) {
-        return doktorRepository.save(doktor);
-    }
-
     public Doktor create(String ad, String soyad, String brans, Long departmentId) {
-
         Department department = null;
+
         if (departmentId != null) {
             department = departmentRepository.findById(departmentId)
                     .orElseThrow(() -> new RuntimeException("Department bulunamadı"));
@@ -41,5 +37,9 @@ public class DoktorService {
 
         return doktorRepository.save(doktor);
     }
-}
 
+    // ✅ SİLME METODU
+    public void delete(Long id) {
+        doktorRepository.deleteById(id);
+    }
+}
