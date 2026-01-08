@@ -2,11 +2,14 @@ pipeline {
   agent any
 
   environment {
+    // Jenkins container içinde docker genelde /usr/bin altında
     DOCKER = "/usr/bin/docker"
     PATH = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
   }
 
-  options { timestamps() }
+  options {
+    timestamps()
+  }
 
   stages {
 
@@ -23,24 +26,20 @@ pipeline {
           echo "PATH=$PATH"
           which java || true
           java -version || true
-          ./mvnw -v
-          ${DOCKER} --version
-          ${DOCKER} compose version
+          chmod +x mvnw || true
+          ./mvnw -v || true
+          ${DOCKER} --version || true
+          ${DOCKER} compose version || true
         '''
       }
     }
 
-    stage('Fix Docker Credentials (Jenkins)') {
+    stage('Backend: Build') {
       steps {
         sh '''
           set -e
-          # Jenkins içinde docker build sırasında "docker-credential-desktop" hatasını engelle
-          mkdir -p "$WORKSPACE/.docker"
-          cat > "$WORKSPACE/.docker/config.json" <<'JSON'
-          { "auths": {} }
-JSON
-          echo "Created $WORKSPACE/.docker/config.json"
-          cat "$WORKSPACE/.docker/config.json"
+          chmod +x mvnw
+          ./mvnw -B -DskipTests package
         '''
       }
     }
@@ -50,7 +49,8 @@ JSON
         sh '''
           set -e
           chmod +x mvnw
-          ./mvnw -Dtest='!**/integration/**' test
+          # Sadece birim testler: IT'leri atlayalım
+          ./mvnw -B -DskipITs=true test
         '''
       }
       post {
@@ -65,23 +65,15 @@ JSON
         sh '''
           set -e
           chmod +x mvnw
-          ./mvnw -Dtest='**/integration/**' test
+          # Failsafe plugin ile *IT.java entegrasyon testlerini çalıştır
+          ./mvnw -B -DskipITs=false verify
         '''
       }
       post {
         always {
-          junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+          // Failsafe rapor klasörü
+          junit allowEmptyResults: true, testResults: 'target/failsafe-reports/*.xml'
         }
-      }
-    }
-
-    stage('Backend: Package') {
-      steps {
-        sh '''
-          set -e
-          chmod +x mvnw
-          ./mvnw -DskipTests package
-        '''
       }
     }
 
@@ -103,23 +95,14 @@ JSON
           set -e
           cd selenium-tests
           chmod +x ../mvnw
-          ../mvnw -q -DskipTests=false test
+          # Headless + baseUrl ayarları already pom.xml içinde var
+          ../mvnw -B test
         '''
       }
       post {
         always {
           junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
         }
-      }
-    }
-
-    stage('Docker Down') {
-      steps {
-        sh '''
-          set +e
-          export DOCKER_CONFIG="$WORKSPACE/.docker"
-          ${DOCKER} compose -f docker-compose.yml down -v --remove-orphans
-        '''
       }
     }
 
@@ -131,7 +114,7 @@ JSON
         set +e
         echo "Post cleanup: docker down"
         export DOCKER_CONFIG="$WORKSPACE/.docker"
-        ${DOCKER} compose -f docker-compose.yml down -v --remove-orphans
+        ${DOCKER} compose -f docker-compose.yml down -v --remove-orphans || true
       '''
     }
   }
