@@ -26,7 +26,7 @@ pipeline {
         sh '''
           set -e
           chmod +x mvnw || true
-          ${MVN} -q -DskipTests clean package
+          ${MVN} -DskipTests clean package
         '''
       }
     }
@@ -36,7 +36,7 @@ pipeline {
         sh '''
           set -e
           chmod +x mvnw || true
-          ${MVN} -q test
+          ${MVN} test
         '''
       }
       post {
@@ -51,7 +51,7 @@ pipeline {
         sh '''
           set -e
           chmod +x mvnw || true
-          ${MVN} -q verify
+          ${MVN} verify
         '''
       }
       post {
@@ -67,14 +67,7 @@ pipeline {
           set -e
           ${DOCKER} version
           ${COMPOSE} version
-
-          if [ -f docker-compose.yml ] || [ -f compose.yml ]; then
-            ${COMPOSE} up -d --build
-          else
-            echo "ERROR: docker-compose.yml / compose.yml bulunamadı."
-            exit 1
-          fi
-
+          ${COMPOSE} up -d --build
           ${COMPOSE} ps
         '''
       }
@@ -91,74 +84,77 @@ pipeline {
             code=$(curl -s -o /dev/null -w "%{http_code}" "${URL}" || true)
             echo "HTTP ${code}"
 
-            if [ "${code}" = "200" ] || [ "${code}" = "301" ] || [ "${code}" = "302" ] || [ "${code}" = "401" ] || [ "${code}" = "403" ]; then
-              echo "Backend is up ✅ (HTTP ${code})"
+            if [ "${code}" = "200" ] || [ "${code}" = "301" ] || \
+               [ "${code}" = "302" ] || [ "${code}" = "401" ] || \
+               [ "${code}" = "403" ]; then
+              echo "Backend is up ✅"
               exit 0
             fi
-
             sleep 2
           done
 
-          echo "Backend did not become ready in time ❌"
+          echo "Backend did not become ready ❌"
           ${COMPOSE} logs --no-color || true
           exit 1
         '''
       }
     }
 
-    stage('6a-Selenium Scenario 1 (Login)') {
+    // ======== SELENIUM SENARYOLARI ========
+
+    stage('6a-Selenium Scenario 1') {
       steps {
         sh '''
           set -e
-          if [ -d "selenium-tests/login-test" ]; then
-            cd selenium-tests/login-test
-            mvn -q test || ${MVN} -q test
+          if [ -f "selenium-tests/pom.xml" ]; then
+            cd selenium-tests
+            mvn -Dtest=LoginTest test
           else
-            echo "SKIP: selenium-tests/login-test yok."
+            echo "SKIP: selenium-tests yok"
           fi
         '''
       }
       post {
         always {
-          junit allowEmptyResults: true, testResults: 'selenium-tests/login-test/**/surefire-reports/*.xml'
+          junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
         }
       }
     }
 
-    stage('6b-Selenium Scenario 2 (Hasta Ekleme)') {
+    stage('6b-Selenium Scenario 2') {
       steps {
         sh '''
           set -e
-          if [ -d "selenium-tests/hasta-ekleme-test" ]; then
-            cd selenium-tests/hasta-ekleme-test
-            mvn -q test || ${MVN} -q test
+          if [ -f "selenium-tests/pom.xml" ]; then
+            cd selenium-tests
+            mvn -Dtest=HastaEklemeTest test
           else
-            echo "SKIP: selenium-tests/hasta-ekleme-test yok."
+            echo "SKIP: selenium-tests yok"
           fi
         '''
       }
       post {
         always {
-          junit allowEmptyResults: true, testResults: 'selenium-tests/hasta-ekleme-test/**/surefire-reports/*.xml'
+          junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
         }
       }
     }
 
-    stage('6c-Selenium Scenario 3 (Randevu)') {
+    stage('6c-Selenium Scenario 3') {
       steps {
         sh '''
           set -e
-          if [ -d "selenium-tests/randevu-test" ]; then
-            cd selenium-tests/randevu-test
-            mvn -q test || ${MVN} -q test
+          if [ -f "selenium-tests/pom.xml" ]; then
+            cd selenium-tests
+            mvn -Dtest=RandevuTest test
           else
-            echo "SKIP: selenium-tests/randevu-test yok."
+            echo "SKIP: selenium-tests yok"
           fi
         '''
       }
       post {
         always {
-          junit allowEmptyResults: true, testResults: 'selenium-tests/randevu-test/**/surefire-reports/*.xml'
+          junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
         }
       }
     }
@@ -168,13 +164,10 @@ pipeline {
     always {
       sh '''
         set +e
-        if [ -f docker-compose.yml ] || [ -f compose.yml ]; then
-          ${COMPOSE} ps || true
-          ${COMPOSE} logs --no-color --tail=200 || true
-          ${COMPOSE} down -v || true
-        fi
+        ${COMPOSE} logs --no-color --tail=200 || true
+        ${COMPOSE} down -v || true
       '''
-      archiveArtifacts allowEmptyArchive: true, artifacts: '**/target/surefire-reports/*, **/target/failsafe-reports/*'
+      archiveArtifacts allowEmptyArchive: true, artifacts: '**/target/**/*'
     }
   }
 }
