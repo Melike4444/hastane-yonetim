@@ -1,159 +1,187 @@
-cd ~/hastane-yonetim
-
-cat > Jenkinsfile <<'EOF'
 pipeline {
   agent any
 
   options {
     timestamps()
+    skipDefaultCheckout(true)
   }
 
   environment {
-    // Docker Desktop + Jenkins container içinden host'a erişim için en güvenlisi bu:
-    APP_BASE_URL = 'http://host.docker.internal:8080'
+    // Jenkins container içinde docker çalışıyorsa genelde /usr/bin/docker veya /usr/local/bin/docker olur
+    DOCKER = "docker"
+    COMPOSE = "docker compose"
+    // Maven wrapper varsa bunu kullanacağız
+    MVN = "./mvnw"
   }
 
   stages {
 
-    stage('Checkout') {
+    stage('1-Checkout') {
       steps {
         checkout scm
+        sh 'ls -la'
       }
     }
 
-    stage('Backend: Unit Tests') {
+    stage('2-Build') {
       steps {
         sh '''
           set -e
-          chmod +x mvnw
-
-          # CI'da DB ayağa kalkmadan contextLoads testi JPA/DB ister ve patlar.
-          # Bu yüzden sadece bu testi hariç tutuyoruz (diğer unit testler koşar).
-          ./mvnw -Dtest="!HastaneYonetimApplicationTests" test
+          chmod +x mvnw || true
+          ${MVN} -q -DskipTests clean package
         '''
       }
     }
 
-    stage('Backend: Integration Tests') {
+    stage('3-Unit Tests') {
       steps {
         sh '''
-          set +e
-          chmod +x mvnw
+          set -e
+          chmod +x mvnw || true
+          # Unit test: surefire (src/test/java ... *Test)
+          ${MVN} -q test
+        '''
+      }
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+        }
+      }
+    }
 
-          # Eğer integration testlerin zaten @Disabled ise bu stage hızlı geçer.
-          # Eğer bazıları çalışırsa ve yine DB isterse pipeline'ı kırmaması için || true.
-          ./mvnw -Dtest="*IntegrationTest" test || true
+    stage('4-Integration Tests') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw || true
+          # En yaygın yaklaşım: Failsafe ile integration testler (*IT)
+          # pom.xml içinde failsafe yoksa bu stage başarısız olur.
+          ${MVN} -q -DskipTests=false verify
+        '''
+      }
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'target/failsafe-reports/*.xml'
+        }
+      }
+    }
+
+    stage('5-Run System on Docker') {
+      steps {
+        sh '''
+          set -e
+          ${DOCKER} version
+          ${COMPOSE} version
+
+          # compose dosyan hangisiyse biri çalışır
+          if [ -f docker-compose.yml ] || [ -f compose.yml ]; then
+            ${COMPOSE} up -d --build
+          else
+            echo "ERROR: docker-compose.yml / compose.yml bulunamadı."
+            exit 1
+          fi
+
+          ${COMPOSE} ps
         '''
       }
     }
 
-    stage('Backend: Package') {
+    stage('Wait Backend Healthy') {
       steps {
         sh '''
           set -e
-          chmod +x mvnw
-          ./mvnw -DskipTests package
-        '''
-      }
-    }
-
-    stage('Docker Up') {
-      steps {
-        sh '''
-          set +e
-          docker compose -f docker-compose.yml down -v || true
-          set -e
-
-          docker compose -f docker-compose.yml up -d --build
-          docker compose -f docker-compose.yml ps
-        '''
-      }
-    }
-
-    stage('Wait App Healthy') {
-      steps {
-        sh '''
-          set -e
-
-          echo "Beklenen URL: $APP_BASE_URL"
-          # 60 sn boyunca dene (2 sn arayla)
+          # Backend’iniz 8080 ise (container içinde) veya compose ile dışarı açılıyorsa buna göre ayarlayın.
+          # Burada localhost:8080 varsayıyorum. Sizde 9091 gibi ise değiştirin.
+          URL="http://localhost:8080"
+          echo "Waiting for ${URL} ..."
           for i in $(seq 1 30); do
-            if curl -fsS "$APP_BASE_URL" >/dev/null; then
-              echo "Uygulama ayakta ✅"
+            if curl -fsS "${URL}" > /dev/null; then
+              echo "Backend is up ✅"
               exit 0
             fi
-            echo "Bekleniyor... ($i/30)"
             sleep 2
           done
-
-          echo "Uygulama ayaga kalkmadi ❌"
+          echo "Backend did not become ready in time ❌"
+          ${COMPOSE} logs --no-color || true
           exit 1
         '''
       }
     }
 
-    // ---- Selenium senaryoları ayrı stage'ler ----
-    stage('Selenium Scenario 1') {
+    // 6. madde: En az 3 Selenium senaryosu
+    // Her stage ayrı "selenium paketi" (klasör) çalıştırır.
+
+    stage('6a-Selenium Scenario 1 (Login)') {
       steps {
         sh '''
-          set +e
-          chmod +x mvnw
-          ./mvnw -pl selenium-tests -Dtest=Senaryo1_* test || true
+          set -e
+          if [ -d "selenium-tests/login-test" ]; then
+            cd selenium-tests/login-test
+            chmod +x ../../mvnw || true
+            mvn -q test || ${MVN} -q test
+          else
+            echo "SKIP: selenium-tests/login-test yok."
+          fi
         '''
+      }
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'selenium-tests/login-test/**/surefire-reports/*.xml'
+        }
       }
     }
 
-    stage('Selenium Scenario 2') {
+    stage('6b-Selenium Scenario 2 (Hasta Ekleme)') {
       steps {
         sh '''
-          set +e
-          chmod +x mvnw
-          ./mvnw -pl selenium-tests -Dtest=Senaryo2_* test || true
+          set -e
+          if [ -d "selenium-tests/hasta-ekleme-test" ]; then
+            cd selenium-tests/hasta-ekleme-test
+            mvn -q test || ${MVN} -q test
+          else
+            echo "SKIP: selenium-tests/hasta-ekleme-test yok."
+          fi
         '''
+      }
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'selenium-tests/hasta-ekleme-test/**/surefire-reports/*.xml'
+        }
       }
     }
 
-    stage('Selenium Scenario 3') {
+    stage('6c-Selenium Scenario 3 (Randevu)') {
       steps {
         sh '''
-          set +e
-          chmod +x mvnw
-          ./mvnw -pl selenium-tests -Dtest=Senaryo3_* test || true
+          set -e
+          if [ -d "selenium-tests/randevu-test" ]; then
+            cd selenium-tests/randevu-test
+            mvn -q test || ${MVN} -q test
+          else
+            echo "SKIP: selenium-tests/randevu-test yok."
+          fi
         '''
       }
-    }
-
-    stage('Selenium Scenario 4') {
-      steps {
-        sh '''
-          set +e
-          chmod +x mvnw
-          ./mvnw -pl selenium-tests -Dtest=Senaryo4_* test || true
-        '''
-      }
-    }
-
-    stage('Selenium Scenario 5') {
-      steps {
-        sh '''
-          set +e
-          chmod +x mvnw
-          ./mvnw -pl selenium-tests -Dtest=Senaryo5_* test || true
-        '''
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'selenium-tests/randevu-test/**/surefire-reports/*.xml'
+        }
       }
     }
   }
 
   post {
     always {
-      junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+      // Container logları istenirse kolay olsun
       sh '''
         set +e
-        docker compose -f docker-compose.yml down || true
-        true
+        if [ -f docker-compose.yml ] || [ -f compose.yml ]; then
+          ${COMPOSE} ps || true
+          ${COMPOSE} logs --no-color --tail=200 || true
+          ${COMPOSE} down -v || true
+        fi
       '''
+      archiveArtifacts allowEmptyArchive: true, artifacts: '**/target/surefire-reports/*, **/target/failsafe-reports/*'
     }
   }
 }
-EOF
-
