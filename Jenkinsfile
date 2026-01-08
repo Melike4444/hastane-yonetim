@@ -1,48 +1,10 @@
 pipeline {
   agent any
-
-  environment {
-    // Jenkins container içinde docker genelde /usr/bin altında
-    DOCKER = "/usr/bin/docker"
-    PATH = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
-  }
-
-  options {
-    timestamps()
-  }
+  options { timestamps() }
 
   stages {
-
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
-    }
-
-    stage('Sanity: Tools') {
-      steps {
-        sh '''
-          set -e
-          echo "PATH=$PATH"
-          which java || true
-          java -version || true
-          chmod +x mvnw || true
-          ./mvnw -v || true
-          ${DOCKER} --version || true
-          # Jenkins konteynerinde 'docker compose' olmayabilir, sorun değil
-          ${DOCKER} compose version || true
-        '''
-      }
-    }
-
-    stage('Backend: Build') {
-      steps {
-        sh '''
-          set -e
-          chmod +x mvnw
-          ./mvnw -B -DskipTests package
-        '''
-      }
+      steps { checkout scm }
     }
 
     stage('Backend: Unit Tests') {
@@ -50,14 +12,8 @@ pipeline {
         sh '''
           set -e
           chmod +x mvnw
-          # Sadece birim testler: IT'leri atlayalım
-          ./mvnw -B -DskipITs=true test
+          ./mvnw -Dtest=!**/integration/** test
         '''
-      }
-      post {
-        always {
-          junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
-        }
       }
     }
 
@@ -66,60 +22,109 @@ pipeline {
         sh '''
           set -e
           chmod +x mvnw
-          # Failsafe plugin ile *IT.java entegrasyon testlerini çalıştır
-          ./mvnw -B -DskipITs=false verify
+          ./mvnw -Dtest=**/integration/** test
         '''
       }
-      post {
-        always {
-          // Failsafe rapor klasörü
-          junit allowEmptyResults: true, testResults: 'target/failsafe-reports/*.xml'
-        }
+    }
+
+    stage('Backend: Package') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw
+          ./mvnw -DskipTests package
+        '''
       }
     }
 
     stage('Docker Up') {
       steps {
         sh '''
+          set +e
+          docker compose -f docker-compose.yml up -d --build
           set -e
-          echo "Docker Up stage (CI): Jenkins konteynerinde 'docker compose' yok."
-          echo "Bu aşamada sadece docker daemon'a erişimi ve çalışan container'ları gösteriyoruz."
-          ${DOCKER} ps || true
         '''
       }
     }
 
-       stage('Selenium Tests') {
+    stage('Wait App Healthy') {
       steps {
         sh '''
           set -e
-          cd selenium-tests
-          chmod +x ../mvnw
-          # CI ortamında Safari/WebDriver ve bağlantı sorunları olabilir.
-          # Bu yüzden selenium testleri hata verse bile pipeline'i KIRMAYALIM:
-          ../mvnw -B test || true
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:8080 >/dev/null; then
+              echo "APP OK"
+              exit 0
+            fi
+            echo "Waiting app... ($i)"
+            sleep 2
+          done
+          echo "App did not become healthy"
+          exit 1
         '''
-      }
-      post {
-        always {
-          // Raporlar yine toplansın, ama build'in sonucu hata olmasın.
-          junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
-        }
       }
     }
 
+    stage('Selenium Scenario 1') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw
+          ./mvnw -pl selenium-tests -Dtest=Senaryo1_* test
+        '''
+      }
+    }
 
-  } // stages
+    stage('Selenium Scenario 2') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw
+          ./mvnw -pl selenium-tests -Dtest=Senaryo2_* test
+        '''
+      }
+    }
+
+    stage('Selenium Scenario 3') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw
+          ./mvnw -pl selenium-tests -Dtest=Senaryo3_* test
+        '''
+      }
+    }
+
+    stage('Selenium Scenario 4') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw
+          ./mvnw -pl selenium-tests -Dtest=Senaryo4_* test
+        '''
+      }
+    }
+
+    stage('Selenium Scenario 5') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw
+          ./mvnw -pl selenium-tests -Dtest=Senaryo5_* test
+        '''
+      }
+    }
+  }
 
   post {
     always {
+      junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
       sh '''
         set +e
-        echo "Post cleanup: docker down (CI'da docker compose yok, sadece log yazılıyor)"
-        # Burada container kapatma işlemini lokalde manuel yapıyoruz,
-        # Jenkins konteynerinde 'docker compose' olmadığı için komut çalıştırmıyoruz.
+        docker compose -f docker-compose.yml down
         true
       '''
     }
   }
 }
+
