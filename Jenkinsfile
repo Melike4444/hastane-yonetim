@@ -5,6 +5,10 @@ pipeline {
     timestamps()
   }
 
+  environment {
+    APP_URL = 'http://localhost:8080'
+  }
+
   stages {
 
     stage('Checkout') {
@@ -13,92 +17,114 @@ pipeline {
       }
     }
 
-    stage('Backend: Build') {
-      steps {
-        sh '''
-          set -e
-          chmod +x mvnw || true
-          ./mvnw -q -DskipTests clean package
-        '''
-      }
-    }
-
     stage('Backend: Unit Tests') {
       steps {
         sh '''
           set -e
-          chmod +x mvnw || true
-          ./mvnw -q test
+          chmod +x mvnw
+          ./mvnw test
         '''
-      }
-      post {
-        always {
-          junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
-        }
       }
     }
 
-    stage('Backend: Integration Tests') {
+    stage('Backend: Package') {
       steps {
         sh '''
           set -e
-          chmod +x mvnw || true
-
-          # DinD (tcp) ile Docker'a bağlan
-          export DOCKER_HOST=tcp://dind:2375
-
-          # Testcontainers socket override kullanma (tcp modunda hata çıkarabiliyor)
-          unset TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE
-
-          # Bazı ortamlarda gerekli olabiliyor (zararı yok)
-          export TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal
-
-          echo DOCKER_HOST=$DOCKER_HOST
-          ./mvnw -q verify
+          chmod +x mvnw
+          ./mvnw -DskipTests package
         '''
-      }
-      post {
-        always {
-          junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
-          junit allowEmptyResults: true, testResults: 'target/failsafe-reports/*.xml'
-        }
       }
     }
 
-    stage('Selenium Tests (non-blocking)') {
+    stage('Docker Up') {
       steps {
         sh '''
-          set +e
-
-          if [ -d "selenium-tests" ] && [ -f "selenium-tests/pom.xml" ]; then
-            cd selenium-tests
-
-            # Eğer bu modülde mvnw varsa onu kullan, yoksa mvn kullan
-            if [ -f "./mvnw" ]; then
-              chmod +x mvnw || true
-              ./mvnw -q test
-            else
-              mvn -q test
-            fi
-          else
-            echo "selenium-tests klasörü veya pom.xml bulunamadı, stage atlanıyor."
-          fi
-
-          exit 0
+          set -e
+          docker compose -f docker-compose.yml up -d --build
         '''
-      }
-      post {
-        always {
-          junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
-        }
       }
     }
 
+    stage('Wait App Healthy') {
+      steps {
+        sh '''
+          set -e
+          echo "Waiting for app: $APP_URL"
+          for i in $(seq 1 60); do
+            if curl -fsS "$APP_URL" > /dev/null; then
+              echo "App is UP ✅"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "App did not become healthy in time ❌"
+          curl -i "$APP_URL" || true
+          exit 1
+        '''
+      }
+    }
+
+    stage('Selenium Scenario 1') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw
+          ./mvnw -pl selenium-tests -Dtest=Senaryo1_* test
+        '''
+      }
+    }
+
+    stage('Selenium Scenario 2') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw
+          ./mvnw -pl selenium-tests -Dtest=Senaryo2_* test
+        '''
+      }
+    }
+
+    stage('Selenium Scenario 3') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw
+          ./mvnw -pl selenium-tests -Dtest=Senaryo3_* test
+        '''
+      }
+    }
+
+    stage('Selenium Scenario 4') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw
+          ./mvnw -pl selenium-tests -Dtest=Senaryo4_* test
+        '''
+      }
+    }
+
+    stage('Selenium Scenario 5') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw
+          ./mvnw -pl selenium-tests -Dtest=Senaryo5_* test
+        '''
+      }
+    }
   }
 
   post {
     always {
-      echo "Pipeline finished."
+      junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+      sh '''
+        set +e
+        docker compose -f docker-compose.yml down
+        true
+      '''
     }
   }
 }
+
