@@ -54,7 +54,7 @@ pipeline {
         sh '''
           set -e
           APP_C="hastane-yonetim-app-1"
-          echo "Waiting for app INSIDE container..."
+          echo "Waiting for application..."
 
           for i in $(seq 1 60); do
             if docker exec "$APP_C" curl -fsS http://localhost:8080 >/dev/null; then
@@ -84,8 +84,8 @@ pipeline {
             cd /var/jenkins_home/workspace/$WS_BASENAME
 
             docker ps >/dev/null
-
             export DOCKER_HOST=unix:///var/run/docker.sock
+
             chmod +x mvnw || true
             ./mvnw -q -DskipITs=false verify
           "
@@ -128,7 +128,6 @@ pipeline {
           done
 
           echo "Running Selenium tests..."
-
           chmod +x mvnw || true
           ./mvnw -q -f selenium-tests/pom.xml \
             -DbaseUrl="http://$APP_C:8080" \
@@ -155,10 +154,21 @@ pipeline {
     always {
       sh '''
         set +e
-        echo "Docker compose logs (last 200 lines):"
+        echo "Global cleanup..."
+
+        docker rm -f selenium-chrome >/dev/null 2>&1 || true
+
+        # Jenkins'i compose networkten ayır (network silinebilmesi için)
+        docker network disconnect -f hastane-yonetim_default jenkins >/dev/null 2>&1 || true
+
+        echo "Docker compose logs:"
         docker-compose ps || true
         docker-compose logs --tail=200 || true
-        docker-compose down -v || true
+
+        echo "Docker compose down..."
+        docker-compose down -v --remove-orphans || true
+
+        docker network rm hastane-yonetim_default >/dev/null 2>&1 || true
       '''
     }
   }
