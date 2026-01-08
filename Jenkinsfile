@@ -1,24 +1,15 @@
 pipeline {
   agent any
 
-  options { timestamps() }
-
-  environment {
-    TESTCONTAINERS_RYUK_DISABLED = "true"
+  options {
+    timestamps()
   }
 
   stages {
-    stage('Checkout') {
-      steps { checkout scm }
-    }
 
-    stage('Build') {
+    stage('Checkout') {
       steps {
-        sh '''
-          set -e
-          chmod +x mvnw || true
-          ./mvnw -q -DskipTests clean package
-        '''
+        checkout scm
       }
     }
 
@@ -98,5 +89,22 @@ pipeline {
         always {
           junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
           archiveArtifacts allowEmptyArchive: true, artifacts: 'selenium-tests/target/surefire-reports/**'
-}
+        }
+      }
+    }
 
+  }
+
+  post {
+    always {
+      sh '''
+        set +e
+        echo "Docker compose logs (last 200 lines each):"
+        docker-compose ps || true
+        docker-compose logs --tail=200 || true
+        echo "Docker compose down..."
+        docker-compose down -v || true
+      '''
+    }
+  }
+}
