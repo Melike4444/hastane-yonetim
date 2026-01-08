@@ -110,10 +110,22 @@ pipeline {
           set -e
           if [ -f "selenium-tests/pom.xml" ]; then
             ROOT="selenium-tests/src/test/java"
-            FILE=$(find "$ROOT" -type f -name "*Test.java" | head -n 1 || true)
+
+            # 1) *Test.java bul
+            # 2) BaseUiTest.java ve abstract sınıfları ele (abstract kelimesi dosyada geçiyorsa)
+            FILE=$(find "$ROOT" -type f -name "*Test.java" \
+              ! -name "BaseUiTest.java" \
+              -print | while read f; do
+                if grep -q "abstract class" "$f"; then
+                  true
+                else
+                  echo "$f"
+                  break
+                fi
+              done)
 
             if [ -z "$FILE" ]; then
-              echo "SKIP: Selenium test bulunamadı."
+              echo "SKIP: Çalıştırılabilir Selenium test bulunamadı."
               exit 0
             fi
 
@@ -121,7 +133,8 @@ pipeline {
             echo "Running Selenium Test: $CLASS"
 
             cd selenium-tests
-            mvn -Dtest="$CLASS" test
+            chmod +x ../mvnw || true
+            ../mvnw -Dtest="$CLASS" test
           else
             echo "SKIP: selenium-tests/pom.xml yok."
           fi
@@ -140,10 +153,18 @@ pipeline {
           set -e
           if [ -f "selenium-tests/pom.xml" ]; then
             ROOT="selenium-tests/src/test/java"
-            FILE=$(find "$ROOT" -type f -name "*Test.java" | sed -n '2p' || true)
+            FILE=$(find "$ROOT" -type f -name "*Test.java" \
+              ! -name "BaseUiTest.java" \
+              -print | while read f; do
+                if grep -q "abstract class" "$f"; then
+                  true
+                else
+                  echo "$f"
+                fi
+              done | sed -n '2p')
 
             if [ -z "$FILE" ]; then
-              echo "SKIP: Selenium test bulunamadı."
+              echo "SKIP: 2. Selenium test bulunamadı."
               exit 0
             fi
 
@@ -151,7 +172,8 @@ pipeline {
             echo "Running Selenium Test: $CLASS"
 
             cd selenium-tests
-            mvn -Dtest="$CLASS" test
+            chmod +x ../mvnw || true
+            ../mvnw -Dtest="$CLASS" test
           else
             echo "SKIP: selenium-tests/pom.xml yok."
           fi
@@ -170,10 +192,18 @@ pipeline {
           set -e
           if [ -f "selenium-tests/pom.xml" ]; then
             ROOT="selenium-tests/src/test/java"
-            FILE=$(find "$ROOT" -type f -name "*Test.java" | sed -n '3p' || true)
+            FILE=$(find "$ROOT" -type f -name "*Test.java" \
+              ! -name "BaseUiTest.java" \
+              -print | while read f; do
+                if grep -q "abstract class" "$f"; then
+                  true
+                else
+                  echo "$f"
+                fi
+              done | sed -n '3p')
 
             if [ -z "$FILE" ]; then
-              echo "SKIP: Selenium test bulunamadı."
+              echo "SKIP: 3. Selenium test bulunamadı."
               exit 0
             fi
 
@@ -181,7 +211,8 @@ pipeline {
             echo "Running Selenium Test: $CLASS"
 
             cd selenium-tests
-            mvn -Dtest="$CLASS" test
+            chmod +x ../mvnw || true
+            ../mvnw -Dtest="$CLASS" test
           else
             echo "SKIP: selenium-tests/pom.xml yok."
           fi
@@ -193,6 +224,7 @@ pipeline {
         }
       }
     }
+
   }
 
   post {
