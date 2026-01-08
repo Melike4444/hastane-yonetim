@@ -1,26 +1,15 @@
 pipeline {
   agent any
 
+  options { timestamps() }
+
   environment {
-    // Jenkins container -> DinD Docker daemon
-    DOCKER_HOST = "tcp://dind:2375"
-    DOCKER_TLS_CERTDIR = ""
-
-    // Testcontainers da aynı Docker daemon'u kullansın
     TESTCONTAINERS_RYUK_DISABLED = "true"
-    TESTCONTAINERS_HOST_OVERRIDE = "host.docker.internal"
-  }
-
-  options {
-    timestamps()
   }
 
   stages {
-
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Build') {
@@ -52,10 +41,10 @@ pipeline {
       steps {
         sh '''
           set -e
+          docker --version
+          docker-compose --version
           echo "Docker compose up..."
-          docker version
-          docker compose version || true
-          docker compose up -d --build
+          docker-compose up -d --build
           docker ps
         '''
       }
@@ -100,30 +89,14 @@ pipeline {
       steps {
         sh '''
           set -e
-          echo "Running Selenium tests with baseUrl=http://host.docker.internal:8080"
+          echo "Running Selenium tests with baseUrl=http://localhost:8080"
           chmod +x mvnw || true
-          ./mvnw -q -f selenium-tests/pom.xml -DbaseUrl=http://host.docker.internal:8080 test
+          ./mvnw -q -f selenium-tests/pom.xml -DbaseUrl=http://localhost:8080 test
         '''
       }
       post {
         always {
           junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
           archiveArtifacts allowEmptyArchive: true, artifacts: 'selenium-tests/target/surefire-reports/**'
-        }
-      }
-    }
-  }
 
-  post {
-    always {
-      sh '''
-        set +e
-        echo "Docker compose logs (last 200 lines each):"
-        docker compose ps || true
-        docker compose logs --tail=200 || true
-        echo "Docker compose down..."
-        docker compose down -v || true
-      '''
-    }
-  }
-}
+
