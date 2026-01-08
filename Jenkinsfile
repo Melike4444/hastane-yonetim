@@ -1,4 +1,10 @@
 pipeline {
+  environment {
+  DOCKER_HOST = "tcp://dind:2375"
+  DOCKER_TLS_CERTDIR = ""
+  TESTCONTAINERS_HOST_OVERRIDE = "dind"
+}
+
   agent any
 
   options {
@@ -95,21 +101,16 @@ pipeline {
     }
 
     stage('UI: Selenium Tests') {
-      steps {
-        sh '''
-          set -e
-          echo "Running Selenium tests with baseUrl=${BASE_URL}"
-          cd selenium-tests
+  steps {
+    sh '''
+      set -e
+      echo "Running Selenium tests with baseUrl=http://dind:8080"
+      chmod +x mvnw || true
+      ./mvnw -q -f selenium-tests/pom.xml -DbaseUrl=http://dind:8080 test
+    '''
+  }
+}
 
-          # Maven wrapper varsa onu kullan
-          chmod +x mvnw || true
-          if [ -f "./mvnw" ]; then
-            ./mvnw -q -DbaseUrl="${BASE_URL}" test
-          else
-            mvn -q -DbaseUrl="${BASE_URL}" test
-          fi
-        '''
-      }
       post {
         always {
           junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
