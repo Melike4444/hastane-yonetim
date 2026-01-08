@@ -1,32 +1,20 @@
 pipeline {
   agent any
 
-  options {
-    timestamps()
-  }
+  options { timestamps() }
 
   stages {
 
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Backend: Unit Tests') {
       steps {
         sh '''
           set -e
-          echo "Running UNIT tests inside Jenkins container..."
-
-          WS_BASENAME="$(basename "$WORKSPACE")"
-
-          docker exec jenkins bash -lc "
-            set -e
-            cd /var/jenkins_home/workspace/$WS_BASENAME
-            chmod +x mvnw || true
-            ./mvnw -q -DskipITs=true test
-          "
+          chmod +x mvnw || true
+          ./mvnw -q -DskipITs=true test
         '''
       }
       post {
@@ -42,7 +30,6 @@ pipeline {
           set -e
           docker --version
           docker-compose --version
-          echo "Docker compose up..."
           docker-compose up -d --build
           docker ps
         '''
@@ -71,24 +58,22 @@ pipeline {
       }
     }
 
-    stage('Backend: Integration Tests') {
+    stage('Backend: Integration Tests (Testcontainers)') {
       steps {
         sh '''
           set -e
-          echo "Running INTEGRATION tests inside Jenkins container..."
+          echo "Running INTEGRATION tests with Testcontainers..."
 
-          WS_BASENAME="$(basename "$WORKSPACE")"
+          # Testcontainers'i doğru docker stratejisine zorla
+          export DOCKER_HOST="unix:///var/run/docker.sock"
+          export TESTCONTAINERS_DOCKER_CLIENT_STRATEGY="org.testcontainers.dockerclient.UnixSocketClientProviderStrategy"
+          export TESTCONTAINERS_HOST_OVERRIDE="host.docker.internal"
+          export TESTCONTAINERS_RYUK_DISABLED="true"
 
-          docker exec jenkins bash -lc "
-            set -e
-            cd /var/jenkins_home/workspace/$WS_BASENAME
+          docker ps >/dev/null
 
-            docker ps >/dev/null
-            export DOCKER_HOST=unix:///var/run/docker.sock
-
-            chmod +x mvnw || true
-            ./mvnw -q -DskipITs=false verify
-          "
+          chmod +x mvnw || true
+          ./mvnw -q -DskipITs=false verify
         '''
       }
       post {
@@ -98,28 +83,29 @@ pipeline {
       }
     }
 
-    stage('UI: Selenium Tests') {
+    stage('UI: Selenium Tests (ARM64 safe)') {
       steps {
         sh '''
           set -e
           echo "Preparing Selenium environment..."
 
           APP_C="hastane-yonetim-app-1"
-
           NET="$(docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{printf "%s" $k}}{{end}}' "$APP_C")"
           echo "Using network: $NET"
 
           docker network connect "$NET" jenkins 2>/dev/null || true
 
           docker rm -f selenium-chrome >/dev/null 2>&1 || true
+
+          # ARM64 uyumlu image
           docker run -d --name selenium-chrome \
             --shm-size=2g \
             --network "$NET" \
             -p 4444:4444 \
-            selenium/standalone-chrome:latest
+            seleniarm/standalone-chromium:latest
 
-          echo "Waiting for Selenium Grid..."
-          for i in $(seq 1 30); do
+          echo "Waiting for Selenium..."
+          for i in $(seq 1 40); do
             if curl -fsS http://localhost:4444/wd/hub/status >/dev/null; then
               echo "Selenium is UP ✅"
               break
@@ -127,7 +113,6 @@ pipeline {
             sleep 2
           done
 
-          echo "Running Selenium tests..."
           chmod +x mvnw || true
           ./mvnw -q -f selenium-tests/pom.xml \
             -DbaseUrl="http://$APP_C:8080" \
@@ -147,7 +132,6 @@ pipeline {
         }
       }
     }
-
   }
 
   post {
@@ -158,17 +142,10 @@ pipeline {
 
         docker rm -f selenium-chrome >/dev/null 2>&1 || true
 
-        # Jenkins'i compose networkten ayır (network silinebilmesi için)
-        docker network disconnect -f hastane-yonetim_default jenkins >/dev/null 2>&1 || true
-
-        echo "Docker compose logs:"
         docker-compose ps || true
         docker-compose logs --tail=200 || true
 
-        echo "Docker compose down..."
         docker-compose down -v --remove-orphans || true
-
-        docker network rm hastane-yonetim_default >/dev/null 2>&1 || true
       '''
     }
   }
