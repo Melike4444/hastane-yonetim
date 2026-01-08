@@ -7,10 +7,8 @@ pipeline {
   }
 
   environment {
-    // Jenkins container içinde docker çalışıyorsa genelde /usr/bin/docker veya /usr/local/bin/docker olur
     DOCKER = "docker"
     COMPOSE = "docker compose"
-    // Maven wrapper varsa bunu kullanacağız
     MVN = "./mvnw"
   }
 
@@ -38,13 +36,12 @@ pipeline {
         sh '''
           set -e
           chmod +x mvnw || true
-          # Unit test: surefire (src/test/java ... *Test)
           ${MVN} -q test
         '''
       }
       post {
         always {
-          junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+          junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
         }
       }
     }
@@ -54,14 +51,12 @@ pipeline {
         sh '''
           set -e
           chmod +x mvnw || true
-          # En yaygın yaklaşım: Failsafe ile integration testler (*IT)
-          # pom.xml içinde failsafe yoksa bu stage başarısız olur.
-          ${MVN} -q -DskipTests=false verify
+          ${MVN} -q verify
         '''
       }
       post {
         always {
-          junit allowEmptyResults: true, testResults: 'target/failsafe-reports/*.xml'
+          junit allowEmptyResults: true, testResults: '**/target/failsafe-reports/*.xml'
         }
       }
     }
@@ -73,7 +68,6 @@ pipeline {
           ${DOCKER} version
           ${COMPOSE} version
 
-          # compose dosyan hangisiyse biri çalışır
           if [ -f docker-compose.yml ] || [ -f compose.yml ]; then
             ${COMPOSE} up -d --build
           else
@@ -90,17 +84,21 @@ pipeline {
       steps {
         sh '''
           set -e
-          # Backend’iniz 8080 ise (container içinde) veya compose ile dışarı açılıyorsa buna göre ayarlayın.
-          # Burada localhost:8080 varsayıyorum. Sizde 9091 gibi ise değiştirin.
           URL="http://localhost:8080"
-          echo "Waiting for ${URL} ..."
+          echo "Waiting for ${URL} (accept 200/301/302/401/403)..."
+
           for i in $(seq 1 30); do
-            if curl -fsS "${URL}" > /dev/null; then
-              echo "Backend is up ✅"
+            code=$(curl -s -o /dev/null -w "%{http_code}" "${URL}" || true)
+            echo "HTTP ${code}"
+
+            if [ "${code}" = "200" ] || [ "${code}" = "301" ] || [ "${code}" = "302" ] || [ "${code}" = "401" ] || [ "${code}" = "403" ]; then
+              echo "Backend is up ✅ (HTTP ${code})"
               exit 0
             fi
+
             sleep 2
           done
+
           echo "Backend did not become ready in time ❌"
           ${COMPOSE} logs --no-color || true
           exit 1
@@ -108,16 +106,12 @@ pipeline {
       }
     }
 
-    // 6. madde: En az 3 Selenium senaryosu
-    // Her stage ayrı "selenium paketi" (klasör) çalıştırır.
-
     stage('6a-Selenium Scenario 1 (Login)') {
       steps {
         sh '''
           set -e
           if [ -d "selenium-tests/login-test" ]; then
             cd selenium-tests/login-test
-            chmod +x ../../mvnw || true
             mvn -q test || ${MVN} -q test
           else
             echo "SKIP: selenium-tests/login-test yok."
@@ -172,7 +166,6 @@ pipeline {
 
   post {
     always {
-      // Container logları istenirse kolay olsun
       sh '''
         set +e
         if [ -f docker-compose.yml ] || [ -f compose.yml ]; then
