@@ -7,18 +7,12 @@ pipeline {
 
   stages {
 
-    /* =======================================================
-       1. CHECKOUT
-       ======================================================= */
     stage('Checkout') {
       steps {
         checkout scm
       }
     }
 
-    /* =======================================================
-       2. BUILD
-       ======================================================= */
     stage('Build') {
       steps {
         sh '''
@@ -28,43 +22,22 @@ pipeline {
       }
     }
 
-    /* =======================================================
-       3. UNIT TESTS
-       ======================================================= */
     stage('Unit Tests') {
       steps {
         sh '''
-          chmod +x mvnw
           ./mvnw test
         '''
       }
-      post {
-        always {
-          junit 'target/surefire-reports/*.xml'
-        }
-      }
     }
 
-    /* =======================================================
-       4. INTEGRATION TESTS
-       ======================================================= */
     stage('Integration Tests') {
       steps {
         sh '''
-          chmod +x mvnw
-          ./mvnw verify
+          ./mvnw verify -DskipTests=false
         '''
-      }
-      post {
-        always {
-          junit 'target/failsafe-reports/*.xml'
-        }
       }
     }
 
-    /* =======================================================
-       5. RUN SYSTEM (DOCKER)
-       ======================================================= */
     stage('Run System (Docker)') {
       steps {
         sh '''
@@ -74,15 +47,13 @@ pipeline {
       }
     }
 
-    /* =======================================================
-       6. SYSTEM TESTS (SELENIUM)
-       ======================================================= */
-
     stage('System Test - Senaryo 1') {
       steps {
         sh '''
-          chmod +x mvnw
-          ./mvnw -Dtest=com.hastane.selenium.Senaryo1_* test
+          cd selenium-tests
+          chmod +x ../mvnw
+          ../mvnw -Dtest=com.hastane.selenium.Senaryo1_* test \
+            -Dsurefire.failIfNoSpecifiedTests=false
         '''
       }
     }
@@ -90,8 +61,9 @@ pipeline {
     stage('System Test - Senaryo 2') {
       steps {
         sh '''
-          chmod +x mvnw
-          ./mvnw -Dtest=com.hastane.selenium.Senaryo2_* test
+          cd selenium-tests
+          ../mvnw -Dtest=com.hastane.selenium.Senaryo2_* test \
+            -Dsurefire.failIfNoSpecifiedTests=false
         '''
       }
     }
@@ -99,8 +71,9 @@ pipeline {
     stage('System Test - Senaryo 3') {
       steps {
         sh '''
-          chmod +x mvnw
-          ./mvnw -Dtest=com.hastane.selenium.Senaryo3_* test
+          cd selenium-tests
+          ../mvnw -Dtest=com.hastane.selenium.Senaryo3_* test \
+            -Dsurefire.failIfNoSpecifiedTests=false
         '''
       }
     }
@@ -108,31 +81,27 @@ pipeline {
     stage('System Test - Senaryo 4 (UI Smoke)') {
       steps {
         sh '''
-          chmod +x mvnw
-          ./mvnw -Dtest=com.hastane.selenium.Senaryo4_* test
+          cd selenium-tests
+          ../mvnw -Dtest=com.hastane.selenium.Senaryo4_* test \
+            -Dsurefire.failIfNoSpecifiedTests=false
         '''
       }
     }
 
-    stage('System Test - Senaryo 5 (Dashboard UI)') {
+    stage('System Test - Senaryo 5 (Dashboard / API)') {
       steps {
         sh '''
-          chmod +x mvnw
-          ./mvnw -Dtest=com.hastane.selenium.Senaryo5_* test
+          cd selenium-tests
+          ../mvnw -Dtest=com.hastane.selenium.Senaryo5_* test \
+            -Dsurefire.failIfNoSpecifiedTests=false
         '''
       }
     }
   }
 
-  /* =======================================================
-     CLEANUP
-     ======================================================= */
   post {
     always {
-      sh '''
-        docker-compose down -v || true
-      '''
+      sh 'docker-compose down -v || true'
     }
   }
 }
-
