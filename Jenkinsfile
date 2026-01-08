@@ -1,17 +1,20 @@
 pipeline {
   agent any
 
-  options {
-    timestamps()
+  environment {
+    // Jenkins container içinde docker CLI var; socket'i /var/run/docker.sock olarak bağladık varsayımıyla:
+    DOCKER_HOST = "unix:///var/run/docker.sock"
+    TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE = "/var/run/docker.sock"
+
+    // Mac Docker Desktop + Jenkins container senaryosunda en stabil host override:
+    // Container içinden host’a erişim için:
+    TESTCONTAINERS_HOST_OVERRIDE = "host.docker.internal"
+
+    MAVEN_OPTS = "-Dmaven.repo.local=.m2/repository"
   }
 
-  environment {
-    // Jenkins container içinde docker varsa genelde PATH'ten bulunur.
-    // Bulunamazsa /usr/bin/docker ya da /usr/local/bin/docker deneyebilirsin.
-    DOCKER = "docker"
-
-    // Testcontainers bazı ortamlarda bunu isteyebiliyor (zararı yok).
-    TESTCONTAINERS_HOST_OVERRIDE = "host.docker.internal"
+  options {
+    timestamps()
   }
 
   stages {
@@ -53,31 +56,31 @@ pipeline {
           set -e
           chmod +x mvnw || true
 
-          # Integration testleri ayrı pakette ise:
-          # ./mvnw -q -Dtest='*IT' test
-          # ya da Failsafe (integration-test/verify) kullanıyorsan:
-          # ./mvnw -q verify
+          echo "DOCKER_HOST=$DOCKER_HOST"
+          echo "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=$TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"
+          echo "TESTCONTAINERS_HOST_OVERRIDE=$TESTCONTAINERS_HOST_OVERRIDE"
 
-          # En güvenlisi: verify (Failsafe + Surefire hepsi)
+          # Integration testler (failsafe varsa verify ile çalışır)
           ./mvnw -q verify
         '''
       }
       post {
         always {
-          junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml'
+          junit allowEmptyResults: true, testResults: '**/target/failsafe-reports/*.xml, **/target/surefire-reports/*.xml'
         }
       }
     }
 
     stage('Selenium Tests (non-blocking)') {
       steps {
-        dir('selenium-tests') {
-          sh '''
-            set +e
-            mvn -q test
-            exit 0
-          '''
-        }
+        sh '''
+          set +e
+          chmod +x mvnw || true
+
+          # Selenium projesinde mvn yoksa bile mvnw ile garanti
+          ./mvnw -q -pl selenium-tests test || true
+          exit 0
+        '''
       }
       post {
         always {
@@ -93,4 +96,3 @@ pipeline {
     }
   }
 }
-	
