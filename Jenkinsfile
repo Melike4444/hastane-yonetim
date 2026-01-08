@@ -6,7 +6,7 @@ pipeline {
   }
 
   environment {
-    APP_URL = 'http://localhost:8080'
+    APP_URL = 'http://app:8080'
   }
 
   stages {
@@ -20,9 +20,7 @@ pipeline {
     stage('Backend: Unit Tests') {
       steps {
         sh '''
-          set -e
-          chmod +x mvnw
-          ./mvnw test
+          ./mvnw clean test
         '''
       }
     }
@@ -30,8 +28,6 @@ pipeline {
     stage('Backend: Package') {
       steps {
         sh '''
-          set -e
-          chmod +x mvnw
           ./mvnw -DskipTests package
         '''
       }
@@ -51,15 +47,27 @@ pipeline {
         sh '''
           set -e
           echo "Waiting for app: $APP_URL"
+
           for i in $(seq 1 60); do
             if curl -fsS "$APP_URL" > /dev/null; then
               echo "App is UP ✅"
               exit 0
             fi
             sleep 2
-          done
+                      done
+
           echo "App did not become healthy in time ❌"
           curl -i "$APP_URL" || true
+
+          echo "---- docker ps ----"
+          docker ps || true
+
+          echo "---- app logs ----"
+          docker compose -f docker-compose.yml logs --no-color --tail=200 app || true
+
+          echo "---- db logs ----"
+          docker compose -f docker-compose.yml logs --no-color --tail=200 db || true
+
           exit 1
         '''
       }
@@ -69,8 +77,8 @@ pipeline {
       steps {
         sh '''
           set -e
-          chmod +x mvnw
-          ./mvnw -pl selenium-tests -Dtest=Senaryo1_* test
+          cd selenium-tests
+          mvn -q -Dtest=Scenario1Test test
         '''
       }
     }
@@ -79,8 +87,8 @@ pipeline {
       steps {
         sh '''
           set -e
-          chmod +x mvnw
-          ./mvnw -pl selenium-tests -Dtest=Senaryo2_* test
+          cd selenium-tests
+          mvn -q -Dtest=Scenario2Test test
         '''
       }
     }
@@ -89,8 +97,8 @@ pipeline {
       steps {
         sh '''
           set -e
-          chmod +x mvnw
-          ./mvnw -pl selenium-tests -Dtest=Senaryo3_* test
+          cd selenium-tests
+          mvn -q -Dtest=Scenario3Test test
         '''
       }
     }
@@ -99,8 +107,8 @@ pipeline {
       steps {
         sh '''
           set -e
-          chmod +x mvnw
-          ./mvnw -pl selenium-tests -Dtest=Senaryo4_* test
+          cd selenium-tests
+          mvn -q -Dtest=Scenario4Test test
         '''
       }
     }
@@ -109,8 +117,8 @@ pipeline {
       steps {
         sh '''
           set -e
-          chmod +x mvnw
-          ./mvnw -pl selenium-tests -Dtest=Senaryo5_* test
+          cd selenium-tests
+          mvn -q -Dtest=Scenario5Test test
         '''
       }
     }
@@ -118,7 +126,8 @@ pipeline {
 
   post {
     always {
-      junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+      junit '**/target/surefire-reports/*.xml'
+
       sh '''
         set +e
         docker compose -f docker-compose.yml down
@@ -127,4 +136,5 @@ pipeline {
     }
   }
 }
+
 
