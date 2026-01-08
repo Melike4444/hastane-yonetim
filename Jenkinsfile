@@ -98,5 +98,5 @@ pipeline {
         always {
           junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
           archiveArtifacts allowEmptyArchive: true, artifacts: 'selenium-tests/target/surefire-reports/**'
-
+}
 
