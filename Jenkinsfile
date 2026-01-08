@@ -101,14 +101,16 @@ pipeline {
 
   post {
     always {
-      // ✅ Jenkins "Test Results" için JUnit raporlarını yayınla
-      // allowEmptyResults: true => rapor yoksa pipeline bozulmasın
+      // ✅ Test Results sekmesi için JUnit raporlarını yayınla
       junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
       junit allowEmptyResults: true, testResults: '**/target/failsafe-reports/*.xml'
       junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
 
-      // ✅ ortamı temizle (senin mevcut davranışın)
-      sh 'docker-compose down -v || true'
+      // ✅ Cleanup: UNSTABLE olmasın diye daha dayanıklı temizlik
+      sh '''
+        docker-compose down -v --remove-orphans || true
+        docker network prune -f || true
+      '''
     }
   }
 }
