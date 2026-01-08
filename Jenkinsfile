@@ -1,18 +1,6 @@
 pipeline {
   agent any
 
-  environment {
-    // Jenkins container içinde docker CLI var; socket'i /var/run/docker.sock olarak bağladık varsayımıyla:
-    DOCKER_HOST = "unix:///var/run/docker.sock"
-    TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE = "/var/run/docker.sock"
-
-    // Mac Docker Desktop + Jenkins container senaryosunda en stabil host override:
-    // Container içinden host’a erişim için:
-    TESTCONTAINERS_HOST_OVERRIDE = "host.docker.internal"
-
-    MAVEN_OPTS = "-Dmaven.repo.local=.m2/repository"
-  }
-
   options {
     timestamps()
   }
@@ -45,7 +33,7 @@ pipeline {
       }
       post {
         always {
-          junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+          junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
         }
       }
     }
@@ -56,17 +44,23 @@ pipeline {
           set -e
           chmod +x mvnw || true
 
-          echo "DOCKER_HOST=$DOCKER_HOST"
-          echo "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=$TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"
-          echo "TESTCONTAINERS_HOST_OVERRIDE=$TESTCONTAINERS_HOST_OVERRIDE"
+          # DinD (tcp) ile Docker'a bağlan
+          export DOCKER_HOST=tcp://dind:2375
 
-          # Integration testler (failsafe varsa verify ile çalışır)
+          # Testcontainers socket override kullanma (tcp modunda hata çıkarabiliyor)
+          unset TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE
+
+          # Bazı ortamlarda gerekli olabiliyor (zararı yok)
+          export TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal
+
+          echo DOCKER_HOST=$DOCKER_HOST
           ./mvnw -q verify
         '''
       }
       post {
         always {
-          junit allowEmptyResults: true, testResults: '**/target/failsafe-reports/*.xml, **/target/surefire-reports/*.xml'
+          junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+          junit allowEmptyResults: true, testResults: 'target/failsafe-reports/*.xml'
         }
       }
     }
@@ -75,10 +69,21 @@ pipeline {
       steps {
         sh '''
           set +e
-          chmod +x mvnw || true
 
-          # Selenium projesinde mvn yoksa bile mvnw ile garanti
-          ./mvnw -q -pl selenium-tests test || true
+          if [ -d "selenium-tests" ] && [ -f "selenium-tests/pom.xml" ]; then
+            cd selenium-tests
+
+            # Eğer bu modülde mvnw varsa onu kullan, yoksa mvn kullan
+            if [ -f "./mvnw" ]; then
+              chmod +x mvnw || true
+              ./mvnw -q test
+            else
+              mvn -q test
+            fi
+          else
+            echo "selenium-tests klasörü veya pom.xml bulunamadı, stage atlanıyor."
+          fi
+
           exit 0
         '''
       }
@@ -88,6 +93,7 @@ pipeline {
         }
       }
     }
+
   }
 
   post {
