@@ -106,9 +106,30 @@ pipeline {
       junit allowEmptyResults: true, testResults: '**/target/failsafe-reports/*.xml'
       junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
 
-      // ✅ Cleanup: UNSTABLE olmasın diye daha dayanıklı temizlik
+      // ✅ Cleanup: asla UNSTABLE olmasın
       sh '''
+        set +e
+
+        # 1) normal kapatmayı dene (başarısız olsa bile devam)
         docker-compose down -v --remove-orphans || true
+
+        # 2) "resource is still in use" olan network'ü zorla temizle
+        NET="hastane-yonetim_default"
+
+        # network varsa, ona bağlı container'ları bul ve sil
+        if docker network inspect "$NET" >/dev/null 2>&1; then
+          IDS=$(docker network inspect "$NET" -f '{{range $id, $c := .Containers}}{{println $id}}{{end}}' 2>/dev/null || true)
+          if [ -n "$IDS" ]; then
+            echo "Network $NET hala kullanılıyor, containerlari siliyorum:"
+            echo "$IDS"
+            echo "$IDS" | xargs -r docker rm -f || true
+          fi
+
+          # network'ü zorla kaldır
+          docker network rm "$NET" || true
+        fi
+
+        # 3) genel temizlik (opsiyonel ama iyi)
         docker network prune -f || true
       '''
     }
