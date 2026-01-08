@@ -1,11 +1,13 @@
 pipeline {
   agent any
 
-  environment {
-    DOCKER_HOST = "tcp://dind:2375"
-    DOCKER_TLS_CERTDIR = ""
-    TESTCONTAINERS_HOST_OVERRIDE = "dind"
-  }
+ environment {
+  DOCKER_HOST = "tcp://host.docker.internal:2375"
+  DOCKER_TLS_CERTDIR = ""
+  TESTCONTAINERS_HOST_OVERRIDE = "host.docker.internal"
+}
+./mvnw -q -f selenium-tests/pom.xml -DbaseUrl=http://dind:8080 test
+
 
   options {
     timestamps()
@@ -96,7 +98,8 @@ pipeline {
           set -e
           echo "Running Selenium tests with baseUrl=http://dind:8080"
           chmod +x mvnw || true
-          ./mvnw -q -f selenium-tests/pom.xml -DbaseUrl=http://dind:8080 test
+         ./mvnw -q -f selenium-tests/pom.xml -DbaseUrl=http://host.docker.internal:8080 test
+
         '''
       }
       post {
