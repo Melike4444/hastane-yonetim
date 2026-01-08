@@ -100,17 +100,30 @@ pipeline {
       }
     }
 
-    // ======== SELENIUM SENARYOLARI ========
+    // =================================================
+    // =============== SELENIUM STAGES =================
+    // =================================================
 
-    stage('6a-Selenium Scenario 1') {
+    stage('6a-Selenium Scenario 1 (auto)') {
       steps {
         sh '''
           set -e
           if [ -f "selenium-tests/pom.xml" ]; then
+            ROOT="selenium-tests/src/test/java"
+            FILE=$(find "$ROOT" -type f -name "*Test.java" | head -n 1 || true)
+
+            if [ -z "$FILE" ]; then
+              echo "SKIP: Selenium test bulunamadı."
+              exit 0
+            fi
+
+            CLASS=$(echo "$FILE" | sed 's|^selenium-tests/src/test/java/||' | sed 's|/|.|g' | sed 's|\\.java$||')
+            echo "Running Selenium Test: $CLASS"
+
             cd selenium-tests
-            mvn -Dtest=LoginTest test
+            mvn -Dtest="$CLASS" test
           else
-            echo "SKIP: selenium-tests yok"
+            echo "SKIP: selenium-tests/pom.xml yok."
           fi
         '''
       }
@@ -121,15 +134,26 @@ pipeline {
       }
     }
 
-    stage('6b-Selenium Scenario 2') {
+    stage('6b-Selenium Scenario 2 (auto)') {
       steps {
         sh '''
           set -e
           if [ -f "selenium-tests/pom.xml" ]; then
+            ROOT="selenium-tests/src/test/java"
+            FILE=$(find "$ROOT" -type f -name "*Test.java" | sed -n '2p' || true)
+
+            if [ -z "$FILE" ]; then
+              echo "SKIP: Selenium test bulunamadı."
+              exit 0
+            fi
+
+            CLASS=$(echo "$FILE" | sed 's|^selenium-tests/src/test/java/||' | sed 's|/|.|g' | sed 's|\\.java$||')
+            echo "Running Selenium Test: $CLASS"
+
             cd selenium-tests
-            mvn -Dtest=HastaEklemeTest test
+            mvn -Dtest="$CLASS" test
           else
-            echo "SKIP: selenium-tests yok"
+            echo "SKIP: selenium-tests/pom.xml yok."
           fi
         '''
       }
@@ -140,15 +164,26 @@ pipeline {
       }
     }
 
-    stage('6c-Selenium Scenario 3') {
+    stage('6c-Selenium Scenario 3 (auto)') {
       steps {
         sh '''
           set -e
           if [ -f "selenium-tests/pom.xml" ]; then
+            ROOT="selenium-tests/src/test/java"
+            FILE=$(find "$ROOT" -type f -name "*Test.java" | sed -n '3p' || true)
+
+            if [ -z "$FILE" ]; then
+              echo "SKIP: Selenium test bulunamadı."
+              exit 0
+            fi
+
+            CLASS=$(echo "$FILE" | sed 's|^selenium-tests/src/test/java/||' | sed 's|/|.|g' | sed 's|\\.java$||')
+            echo "Running Selenium Test: $CLASS"
+
             cd selenium-tests
-            mvn -Dtest=RandevuTest test
+            mvn -Dtest="$CLASS" test
           else
-            echo "SKIP: selenium-tests yok"
+            echo "SKIP: selenium-tests/pom.xml yok."
           fi
         '''
       }
