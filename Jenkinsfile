@@ -2,9 +2,9 @@ pipeline {
   agent any
 
   options {
-    timestamps()
-    ansiColor('xterm')
-  }
+  timestamps()
+}
+
 
   environment {
     // Jenkins container içinde docker CLI genelde PATH'te olur.
