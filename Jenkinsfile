@@ -11,25 +11,34 @@ pipeline {
 
     stages {
 
+        /* =========================
+           1. CHECKOUT
+        ========================== */
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
+        /* =========================
+           2. BUILD
+        ========================== */
         stage('Build') {
             steps {
                 sh '''
-                    chmod +x mvnw
-                    ./mvnw clean compile
+                chmod +x mvnw
+                ./mvnw clean package -DskipTests
                 '''
             }
         }
 
+        /* =========================
+           3. UNIT TESTS
+        ========================== */
         stage('Unit Tests') {
             steps {
                 sh '''
-                    ./mvnw test
+                ./mvnw test
                 '''
             }
             post {
@@ -39,10 +48,13 @@ pipeline {
             }
         }
 
+        /* =========================
+           4. INTEGRATION TESTS
+        ========================== */
         stage('Integration Tests') {
             steps {
                 sh '''
-                    ./mvnw verify -DskipTests=false
+                ./mvnw verify
                 '''
             }
             post {
@@ -52,22 +64,73 @@ pipeline {
             }
         }
 
-        stage('UI Tests (Selenium)') {
-            when {
-                expression { false }   // ❗ CI ortamında bilinçli olarak kapalı
-            }
+        /* =========================
+           5. RUN SYSTEM (DOCKER)
+        ========================== */
+        stage('Run System (Docker)') {
             steps {
-                echo "Selenium UI tests are disabled in CI environment"
+                sh '''
+                docker-compose up -d --build
+                sleep 20
+                '''
+            }
+        }
+
+        /* =========================
+           6. SYSTEM TESTS (SELENIUM)
+        ========================== */
+
+        stage('System Test - Senaryo 1') {
+            steps {
+                sh '''
+                cd selenium-tests
+                mvn -Dtest=Senaryo1_* test
+                '''
+            }
+        }
+
+        stage('System Test - Senaryo 2') {
+            steps {
+                sh '''
+                cd selenium-tests
+                mvn -Dtest=Senaryo2_* test
+                '''
+            }
+        }
+
+        stage('System Test - Senaryo 3') {
+            steps {
+                sh '''
+                cd selenium-tests
+                mvn -Dtest=Senaryo3_* test
+                '''
+            }
+        }
+
+        stage('System Test - Senaryo 4 (UI Smoke)') {
+            steps {
+                sh '''
+                cd selenium-tests
+                mvn -Dtest=Senaryo4_* test
+                '''
+            }
+        }
+
+        stage('System Test - Senaryo 5 (Dashboard UI)') {
+            steps {
+                sh '''
+                cd selenium-tests
+                mvn -Dtest=Senaryo5_* test
+                '''
             }
         }
     }
 
     post {
-        success {
-            echo "✅ Build SUCCESS - All required tests passed"
-        }
-        failure {
-            echo "❌ Build FAILED"
+        always {
+            sh '''
+            docker-compose down -v || true
+            '''
         }
     }
 }
