@@ -2,7 +2,6 @@ package com.hastane.selenium;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.remote.RemoteWebDriver;
@@ -14,6 +13,9 @@ public abstract class BaseUiTest {
 
     protected WebDriver driver;
 
+    // ✅ Testlerin kullandığı değişken: baseUrl
+    protected String baseUrl;
+
     @BeforeEach
     void setup() throws Exception {
         ChromeOptions options = new ChromeOptions();
@@ -24,12 +26,21 @@ public abstract class BaseUiTest {
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--window-size=1920,1080");
 
-        // docker-compose içindeki selenium container adı genelde: selenium-chrome
+        // docker-compose içindeki selenium container adı: selenium-chrome
         String seleniumUrl = System.getProperty("SELENIUM_URL",
                 System.getenv().getOrDefault("SELENIUM_URL", "http://selenium-chrome:4444/wd/hub"));
 
         driver = new RemoteWebDriver(new URL(seleniumUrl), options);
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
+
+        // ✅ Uygulama base URL (docker-compose servis adı: hastane-yonetim-app)
+        baseUrl = System.getProperty("BASE_URL",
+                System.getenv().getOrDefault("BASE_URL", "http://hastane-yonetim-app:8080"));
+
+        // / ile bitmesin diye normalize
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
     }
 
     @AfterEach
@@ -39,20 +50,8 @@ public abstract class BaseUiTest {
         }
     }
 
-    // UI ana adresi (docker-compose’da app servisi: hastane-yonetim-app)
-    protected String baseUrl() {
-        String url = System.getProperty("BASE_URL",
-                System.getenv().getOrDefault("BASE_URL", "http://hastane-yonetim-app:8080"));
-        // / ile bitmesin diye normalize edelim
-        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
-    }
-
-    // Testlerde “sayfada şu yazı var mı?” kontrolü için helper
+    // ✅ Senaryo5’te kullanılan helper (daha önce bunun yüzünden patlamıştı)
     protected boolean pageContains(String text) {
-        // en basit ve sağlam yöntem:
         return driver.getPageSource().contains(text);
-
-        // Alternatif görünür text kontrolü istersen:
-        // return driver.findElement(By.tagName("body")).getText().contains(text);
     }
 }
