@@ -1,6 +1,5 @@
 package com.hastane.hastane_yonetim.integration;
 
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hastane.hastane_yonetim.entity.Department;
 import com.hastane.hastane_yonetim.entity.Doktor;
@@ -16,12 +15,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -30,33 +25,28 @@ import java.util.Map;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 class MuayeneApiIT {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16")
-            .withDatabaseName("hastane_test")
-            .withUsername("postgres")
-            .withPassword("postgres");
+    @Autowired
+    private MockMvc mvc;
 
-    @DynamicPropertySource
-    static void props(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        // Testte şema rahat oluşsun diye
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "update");
-    }
+    @Autowired
+    private ObjectMapper om;
 
-    @Autowired MockMvc mvc;
-    @Autowired ObjectMapper om;
+    @Autowired
+    private HastaRepository hastaRepo;
 
-    @Autowired HastaRepository hastaRepo;
-    @Autowired DepartmentRepository bolumRepo;
-    @Autowired DoktorRepository doktorRepo;
-    @Autowired RandevuRepository randevuRepo;
+    @Autowired
+    private DepartmentRepository bolumRepo;
+
+    @Autowired
+    private DoktorRepository doktorRepo;
+
+    @Autowired
+    private RandevuRepository randevuRepo;
 
     private Long hastaId;
     private Long doktorId;
@@ -107,9 +97,11 @@ class MuayeneApiIT {
         body.put("tani", "Migren");
         body.put("not", "test");
 
-        mvc.perform(post("/api/muayeneler")
+        mvc.perform(
+                post("/api/muayeneler")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(om.writeValueAsString(body)))
-                .andExpect(status().isCreated());
+                        .content(om.writeValueAsString(body))
+        ).andExpect(status().isCreated());
     }
 }
+
