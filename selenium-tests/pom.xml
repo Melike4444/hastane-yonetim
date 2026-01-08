@@ -30,7 +30,7 @@
       <scope>test</scope>
     </dependency>
 
-    <!-- WebDriverManager (chromedriver otomatik indirir/ayarlar) -->
+    <!-- WebDriverManager (lokalde chromedriver için fallback) -->
     <dependency>
       <groupId>io.github.bonigarcia</groupId>
       <artifactId>webdrivermanager</artifactId>
@@ -44,20 +44,20 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.3.1</version>
+        <version>3.2.5</version>
         <configuration>
-          <useModulePath>false</useModulePath>
           <includes>
             <include>**/*Test.java</include>
           </includes>
-          <!-- Headless koşsun -->
+
+          <!-- Varsayılanlar (Jenkins’te -D ile override edeceğiz) -->
           <systemPropertyVariables>
-            <headless>true</headless>
-            <baseUrl>http://localhost:9091</baseUrl>
+            <baseUrl>http://localhost:8080</baseUrl>
+            <!-- Jenkins’te remoteUrl set edeceğiz -->
+            <remoteUrl></remoteUrl>
           </systemPropertyVariables>
         </configuration>
       </plugin>
     </plugins>
   </build>
-
 </project>

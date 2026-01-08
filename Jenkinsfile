@@ -65,7 +65,7 @@ pipeline {
       steps {
         sh '''
           set -e
-          docker-compose up -d --build
+          docker compose up -d --build
         '''
       }
     }
@@ -135,11 +135,108 @@ pipeline {
     always {
       sh '''
         set +e
-        docker-compose down -v --remove-orphans || true
+        docker compose down -v --remove-orphans || true
       '''
       // İstersen tüm raporları tek seferde de toplayabilirsin (opsiyonel)
       junit testResults: '**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml, selenium-tests/**/target/surefire-reports/*.xml',
             allowEmptyResults: true
+    }
+  }
+}
+
+          docker compose down -v || true
+          docker compose build --no-cache
+          docker compose up -d
+
+          echo "Waiting app health..."
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080 >/dev/null 2>&1; then
+              echo "APP OK ✅"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "APP did not become healthy ❌"
+          docker compose ps
+          docker compose logs --no-color | tail -n 200
+          exit 1
+        '''
+      }
+    }
+
+    stage('Selenium Scenario 1') {
+      steps {
+        sh '''
+          set -e
+
+          # Selenium container remote URL
+          SEL_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' hastane-yonetim-selenium)
+          REMOTE_URL="http://$SEL_HOST:4444/wd/hub"
+
+          echo "Remote URL: $REMOTE_URL"
+
+          cd selenium-tests
+          chmod +x ../mvnw
+
+          # baseUrl: Selenium container, compose network içindeki "app" servisine gider
+          ../mvnw -DbaseUrl=http://app:8080 -DremoteUrl=$REMOTE_URL -Dtest=Senaryo1_UygulamaAciliyorMuTest test
+        '''
+      }
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
+        }
+      }
+    }
+
+    stage('Selenium Scenario 2') {
+      steps {
+        sh '''
+          set -e
+          SEL_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' hastane-yonetim-selenium)
+          REMOTE_URL="http://$SEL_HOST:4444/wd/hub"
+
+          cd selenium-tests
+          ../mvnw -DbaseUrl=http://app:8080 -DremoteUrl=$REMOTE_URL -Dtest=Senaryo2_DoktorlarEndpointTest test
+        '''
+      }
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
+        }
+      }
+    }
+
+    stage('Selenium Scenario 3') {
+      steps {
+        sh '''
+          set -e
+          SEL_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' hastane-yonetim-selenium)
+          REMOTE_URL="http://$SEL_HOST:4444/wd/hub"
+
+          cd selenium-tests
+          ../mvnw -DbaseUrl=http://app:8080 -DremoteUrl=$REMOTE_URL -Dtest=Senaryo3_RandevularEndpointTest test
+        '''
+      }
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'selenium-tests/target/surefire-reports/*.xml'
+        }
+      }
+    }
+
+  } // stages
+
+  post {
+    always {
+      sh '''
+        docker compose ps || true
+        docker compose logs --no-color | tail -n 200 || true
+      '''
+    }
+    cleanup {
+      sh 'docker compose down -v || true'
     }
   }
 }

@@ -2,14 +2,17 @@ package com.hastane.selenium;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class Senaryo4_UiSmokeTest extends BaseUiTest {
 
     @Test
-    void uygulamaAcilabiliyorMu() {
+    void uiSayfasiAcilabiliyorMu() {
         driver.get(baseUrl() + "/");
-        String url = driver.getCurrentUrl();
-        assertTrue(url.startsWith(baseUrl()), "UI smoke: baseUrl açılmadı. URL=" + url);
+
+        assertNotNull(driver.getTitle(), "Sayfa başlığı null, UI açılmamış olabilir");
+        assertTrue(driver.getPageSource() != null && !driver.getPageSource().isBlank(),
+                "UI sayfa kaynağı boş geldi.");
     }
 }

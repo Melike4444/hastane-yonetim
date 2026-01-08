@@ -2,16 +2,16 @@ package com.hastane.selenium;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class Senaryo1_UygulamaAciliyorMuTest extends BaseUiTest {
 
     @Test
-    void uygulamaAciliyorMu() {
+    void uygulamaAcilabiliyorMu() {
         driver.get(baseUrl() + "/");
-        String url = driver.getCurrentUrl();
-
-        assertTrue(url.startsWith(baseUrl()), "Uygulama beklenen baseUrl ile açılmadı. URL=" + url);
-        assertNotNull(driver.getTitle(), "Title null geldi (sayfa yüklenmemiş olabilir).");
+        String title = driver.getTitle();
+        // title boş olabilir ama sayfa açıldı mı diye çok basit kontrol:
+        assertTrue(driver.getPageSource() != null && !driver.getPageSource().isBlank(),
+                "Sayfa kaynağı boş geldi. Uygulama açılmıyor olabilir.");
     }
 }

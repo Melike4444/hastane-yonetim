@@ -1,6 +1,7 @@
-services:
+version: "3.8"
 
-  hastane-yonetim-db:
+services:
+  db:
     image: postgres:16
     container_name: hastane-yonetim-db
     environment:
@@ -15,23 +16,23 @@ services:
       timeout: 5s
       retries: 5
 
-  hastane-yonetim-app:
+  app:
     build: .
     container_name: hastane-yonetim-app
     depends_on:
-      hastane-yonetim-db:
+      db:
         condition: service_healthy
     ports:
-      - "9091:8080"
+      - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://hastane-yonetim-db:5432/hastane
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/hastane
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
 
-  selenium-chrome:
-    image: seleniarm/standalone-chromium:latest
-    container_name: selenium-chrome
+  selenium:
+    image: selenium/standalone-chrome:latest
+    container_name: hastane-yonetim-selenium
+    shm_size: 2gb
     ports:
       - "4444:4444"
-      - "7900:7900"
-    shm_size: 2gb
