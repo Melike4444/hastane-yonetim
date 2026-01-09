@@ -3,7 +3,6 @@ package com.hastane.selenium;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.openqa.selenium.MutableCapabilities;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
@@ -17,24 +16,18 @@ public class BaseUiTest {
     protected WebDriver driver;
 
     protected String baseUrl() {
-        String url = System.getProperty("baseUrl");
-        if (url == null || url.isBlank()) return "http://localhost:8080";
-        return url;
+        return System.getProperty("baseUrl", "http://localhost:8080");
     }
 
     @BeforeEach
     void setUp() throws Exception {
-        String remoteUrl = System.getProperty("remoteUrl");
+        String remoteUrl = System.getProperty("remoteUrl", "").trim();
 
-        if (remoteUrl != null && !remoteUrl.isBlank()) {
-            // Jenkins/Docker: Selenium container
+        if (!remoteUrl.isEmpty()) {
             ChromeOptions options = new ChromeOptions();
-            options.addArguments("--no-sandbox", "--disable-dev-shm-usage");
-            MutableCapabilities caps = options;
-
-            driver = new RemoteWebDriver(new URL(remoteUrl), caps);
+            options.addArguments("--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--window-size=1920,1080");
+            driver = new RemoteWebDriver(new URL(remoteUrl), options);
         } else {
-            // Lokal fallback: ChromeDriver
             WebDriverManager.chromedriver().setup();
             ChromeOptions options = new ChromeOptions();
             options.addArguments("--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--window-size=1920,1080");

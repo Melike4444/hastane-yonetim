@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   db:
     image: postgres:16
@@ -14,7 +12,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   app:
     build: .
@@ -31,7 +29,7 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
 
   selenium:
-    image: selenium/standalone-chrome:latest
+    image: seleniarm/standalone-chromium:latest
     container_name: hastane-yonetim-selenium
     shm_size: 2gb
     ports:
