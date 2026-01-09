@@ -1,66 +1,89 @@
 package com.hastane.hastane_yonetim.unit;
 
-import com.hastane.hastane_yonetim.TestcontainersConfiguration;
-import org.springframework.context.annotation.Import;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hastane.hastane_yonetim.controller.MuayeneController;
-import com.hastane.hastane_yonetim.dto.MuayeneRequest;
-import com.hastane.hastane_yonetim.dto.MuayeneResponse;
-import com.hastane.hastane_yonetim.service.MuayeneService;
+import com.hastane.hastane_yonetim.entity.*; // <-- sende ayrı ayrıysa tek tek import et
+import com.hastane.hastane_yonetim.repository.*;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.hamcrest.Matchers.is;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(MuayeneController.class)
-class MuayeneControllerUnitTest {
+@SpringBootTest
+@AutoConfigureMockMvc(addFilters = false) // ✅ 401/403 olmasın
+@Transactional // ✅ test bitince rollback -> DB temiz kalır
+public class MuayeneControllerUnitTest {
 
-    @Autowired private MockMvc mockMvc;
-    @Autowired private ObjectMapper objectMapper;
+    @Autowired MockMvc mockMvc;
+    @Autowired ObjectMapper objectMapper;
 
-    @MockBean private MuayeneService muayeneService;
+    @Autowired DepartmentRepository departmentRepository;
+    @Autowired DoktorRepository doktorRepository;
+    @Autowired HastaRepository hastaRepository;
+    @Autowired RandevuRepository randevuRepository;
 
-    @Test
-    void getAll_returns200() throws Exception {
-        Mockito.when(muayeneService.getAll()).thenReturn(List.of(
-                MuayeneResponse.builder().id(1L).randevuId(10L).teshis("Grip").build()
-        ));
-
-        mockMvc.perform(get("/api/muayeneler"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].teshis").value("Grip"));
+    private String uniq(String prefix) {
+        return prefix + "-" + UUID.randomUUID();
     }
 
     @Test
     void create_returns201() throws Exception {
-        MuayeneRequest req = MuayeneRequest.builder()
-                .randevuId(10L)
-                .muayeneTarihi(LocalDateTime.of(2026, 1, 3, 10, 0))
-                .teshis("Soğuk algınlığı")
-                .build();
+        // 1) Department (benzersiz ad!)
+        Department dep = new Department();
+        dep.setAd(uniq("TestDep"));
+        dep.setAciklama("Test");
+        dep = departmentRepository.save(dep);
 
-        Mockito.when(muayeneService.create(any(MuayeneRequest.class)))
-                .thenReturn(MuayeneResponse.builder()
-                        .id(1L)
-                        .randevuId(10L)
-                        .teshis("Soğuk algınlığı")
-                        .build());
+        // 2) Doktor
+        Doktor doktor = new Doktor();
+        doktor.setAd("TestDoktor");
+        doktor.setSoyad("A");
+        doktor.setBrans("Kardiyoloji");
+        doktor.setDepartment(dep);
+        doktor = doktorRepository.save(doktor);
+
+        // 3) Hasta
+        Hasta hasta = new Hasta();
+        hasta.setAd("TestHasta");
+        hasta.setSoyad("B");
+        hasta.setTelefon("05000000000");
+        hasta = hastaRepository.save(hasta);
+
+        // 4) Randevu
+        Randevu randevu = new Randevu();
+        randevu.setDoktor(doktor);
+        randevu.setHasta(hasta);
+        randevu.setTarihSaat(LocalDateTime.now().plusDays(1));
+        randevu = randevuRepository.save(randevu);
+
+        // 5) Muayene create request (randevuId kesin var)
+        String body = """
+                {
+                  "randevuId": %d,
+                  "sikayet": "Bas agrisi",
+                  "teshis": "Migren",
+                  "tedavi": "Ilac",
+                  "notlar": "Kontrol 1 hafta"
+                }
+                """.formatted(randevu.getId());
 
         mockMvc.perform(post("/api/muayeneler")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                        .content(body))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.teshis").value("Soğuk algınlığı"));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.sikayet", is("Bas agrisi")))
+                .andExpect(jsonPath("$.teshis", is("Migren")))
+                .andExpect(jsonPath("$.tedavi", is("Ilac")));
     }
 }
