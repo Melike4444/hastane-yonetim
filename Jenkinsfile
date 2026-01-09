@@ -1,19 +1,12 @@
-cd ~/hastane-yonetim
-
-cat > Jenkinsfile <<'EOF'
 pipeline {
   agent any
 
   options { timestamps() }
 
   environment {
-    // Compose içinden backend'e servis adıyla erişeceğiz:
-    // docker-compose.yml'de backend servis adın "app" değilse burayı değiştir.
-    APP_SERVICE = "app"
-    SELENIUM_SERVICE = "hastane-yonetim-selenium"
-
-    // Selenium-tests çalıştıracağımız maven image
-    MAVEN_IMAGE = "maven:3.9.9-eclipse-temurin-21"
+    APP_SERVICE      = 'app'
+    SELENIUM_SERVICE = 'hastane-yonetim-selenium'
+    MAVEN_IMAGE      = 'maven:3.9.9-eclipse-temurin-21'
   }
 
   stages {
@@ -96,9 +89,8 @@ pipeline {
         sh '''
           set -e
           NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
-          docker run --rm --network "$NET" \
-            -v "$WORKSPACE:/work" -w /work/selenium-tests \
-            "$MAVEN_IMAGE" mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+          docker run --rm --network "$NET" -v "$WORKSPACE:/work" -w /work/selenium-tests "$MAVEN_IMAGE" \
+            mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
             -Dtest=Senaryo1_UygulamaAciliyorMuTest test
         '''
       }
@@ -109,9 +101,8 @@ pipeline {
         sh '''
           set -e
           NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
-          docker run --rm --network "$NET" \
-            -v "$WORKSPACE:/work" -w /work/selenium-tests \
-            "$MAVEN_IMAGE" mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+          docker run --rm --network "$NET" -v "$WORKSPACE:/work" -w /work/selenium-tests "$MAVEN_IMAGE" \
+            mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
             -Dtest=Senaryo2_HastaSayfasiTest test
         '''
       }
@@ -122,9 +113,8 @@ pipeline {
         sh '''
           set -e
           NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
-          docker run --rm --network "$NET" \
-            -v "$WORKSPACE:/work" -w /work/selenium-tests \
-            "$MAVEN_IMAGE" mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+          docker run --rm --network "$NET" -v "$WORKSPACE:/work" -w /work/selenium-tests "$MAVEN_IMAGE" \
+            mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
             -Dtest=Senaryo3_DoktorSayfasiTest test
         '''
       }
@@ -135,9 +125,8 @@ pipeline {
         sh '''
           set -e
           NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
-          docker run --rm --network "$NET" \
-            -v "$WORKSPACE:/work" -w /work/selenium-tests \
-            "$MAVEN_IMAGE" mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+          docker run --rm --network "$NET" -v "$WORKSPACE:/work" -w /work/selenium-tests "$MAVEN_IMAGE" \
+            mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
             -Dtest=Senaryo4_UiSmokeTest test
         '''
       }
@@ -148,9 +137,8 @@ pipeline {
         sh '''
           set -e
           NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
-          docker run --rm --network "$NET" \
-            -v "$WORKSPACE:/work" -w /work/selenium-tests \
-            "$MAVEN_IMAGE" mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+          docker run --rm --network "$NET" -v "$WORKSPACE:/work" -w /work/selenium-tests "$MAVEN_IMAGE" \
+            mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
             -Dtest=Senaryo5_ApiSmokeTest test
         '''
       }
@@ -168,4 +156,3 @@ pipeline {
     }
   }
 }
-EOF
