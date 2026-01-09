@@ -2,17 +2,20 @@ pipeline {
   agent any
 
   environment {
-    DOCKER  = "/usr/local/bin/docker"
-    COMPOSE = "docker compose"
     BASE_URL = "http://host.docker.internal:8080"
+    SELENIUM_GRID_URL = "http://hastane-yonetim-selenium:4444/wd/hub"
   }
 
-  options { timestamps() }
+  options {
+    timestamps()
+  }
 
   stages {
 
     stage('Checkout') {
-      steps { checkout scm }
+      steps {
+        checkout scm
+      }
     }
 
     stage('Build Backend (skip tests)') {
@@ -25,12 +28,23 @@ pipeline {
       }
     }
 
+    stage('Backend: Tests (Unit+Integration)') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw || true
+          ./mvnw test
+        '''
+      }
+    }
+
     stage('Docker Compose Up') {
       steps {
         sh '''
           set -e
           docker compose down -v || true
           docker compose up -d --build
+          docker compose ps
         '''
       }
     }
@@ -39,21 +53,42 @@ pipeline {
       steps {
         sh '''
           set +e
-          echo "Waiting for app to be ready at ${BASE_URL}"
+          echo "Waiting for app to be reachable at ${BASE_URL}"
           for i in $(seq 1 60); do
-            # 403 de gelse "ayakta" say (Jenkins auth vs. yüzünden)
-            CODE=$(docker run --rm curlimages/curl:8.6.0 -s -o /dev/null -w "%{http_code}" ${BASE_URL} || echo "000")
+            CODE=$(docker run --rm curlimages/curl:8.6.0 -s -o /dev/null -w "%{http_code}" "${BASE_URL}" || echo 000)
             echo "Try #$i => HTTP $CODE"
-
             if [ "$CODE" = "200" ] || [ "$CODE" = "302" ] || [ "$CODE" = "401" ] || [ "$CODE" = "403" ]; then
               echo "APP is reachable (HTTP $CODE). Continuing..."
               exit 0
             fi
+            sleep 2
+          done
+          echo "App did not become reachable in time."
+          exit 1
+        '''
+      }
+    }
 
+    stage('Wait Selenium Ready') {
+      steps {
+        sh '''
+          set +e
+          echo "Waiting for Selenium Grid to be ready..."
+          # compose network adını otomatik bulalım (docker compose default network)
+          NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
+          echo "Detected network: $NET"
+
+          for i in $(seq 1 60); do
+            CODE=$(docker run --rm --network "$NET" curlimages/curl:8.6.0 -s -o /dev/null -w "%{http_code}" "http://hastane-yonetim-selenium:4444/status" || echo 000)
+            echo "Try #$i => Selenium /status HTTP $CODE"
+            if [ "$CODE" = "200" ]; then
+              echo "Selenium Grid is ready."
+              exit 0
+            fi
             sleep 2
           done
 
-          echo "APP did not become reachable"
+          echo "Selenium did not become ready in time."
           exit 1
         '''
       }
@@ -74,7 +109,7 @@ pipeline {
         sh '''
           set -e
           cd selenium-tests
-          ../mvnw -q -Dtest=Senaryo2_* test
+          ../mvnw -q -Dtest=Senaryo2_HastaSayfasiTest test
         '''
       }
     }
@@ -84,7 +119,7 @@ pipeline {
         sh '''
           set -e
           cd selenium-tests
-          ../mvnw -q -Dtest=Senaryo3_* test
+          ../mvnw -q -Dtest=Senaryo3_DoktorSayfasiTest test
         '''
       }
     }
@@ -94,7 +129,7 @@ pipeline {
         sh '''
           set -e
           cd selenium-tests
-          ../mvnw -q -Dtest=Senaryo4_* test
+          ../mvnw -q -Dtest=Senaryo4_UiSmokeTest test
         '''
       }
     }
@@ -104,7 +139,7 @@ pipeline {
         sh '''
           set -e
           cd selenium-tests
-          ../mvnw -q -Dtest=Senaryo5_* test
+          ../mvnw -q -Dtest=Senaryo5_ApiSmokeTest test
         '''
       }
     }
