@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false) // ✅ Security 401/403 bitirir
 @Transactional // ✅ rollback
-public class DepartmentControllerTest {
+public class DepartmentControllerWebMvcTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
