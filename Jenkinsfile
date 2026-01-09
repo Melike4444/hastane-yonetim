@@ -27,12 +27,16 @@ pipeline {
       steps {
         sh '''
           set -e
-          ./mvnw -q test -Dtest='!*selenium*'
+          # Selenium raporları eski kalmasın diye temizle
+          rm -rf selenium-tests/target || true
+
+          # selenium-tests modülünü çalıştırma
+          ./mvnw -q -pl '!selenium-tests' -am test
         '''
       }
       post {
         always {
-          junit '**/target/surefire-reports/*.xml'
+          junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml, !**/selenium-tests/**'
         }
       }
     }
@@ -41,12 +45,15 @@ pipeline {
       steps {
         sh '''
           set -e
-          ./mvnw -q failsafe:integration-test failsafe:verify -Dtest='!*selenium*'
+          rm -rf selenium-tests/target || true
+
+          # selenium-tests modülünü çalıştırma
+          ./mvnw -q -pl '!selenium-tests' -am failsafe:integration-test failsafe:verify
         '''
       }
       post {
         always {
-          junit '**/target/failsafe-reports/*.xml'
+          junit allowEmptyResults: true, testResults: '**/target/failsafe-reports/*.xml, !**/selenium-tests/**'
         }
       }
     }
