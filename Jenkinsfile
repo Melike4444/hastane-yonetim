@@ -45,7 +45,7 @@ pipeline {
           echo "Waiting for app at http://${APP_SERVICE}:8080 ..."
 
           for i in $(seq 1 60); do
-            CODE=$(docker run --rm --network "$NET" curlimages/curl:8.6.0 -s -o /dev/null -w "%{http_code}" "http://${APP_SERVICE}:8080" || echo 000)
+            CODE=$(docker run --rm --network "$NET" curlimages/curl:8.6.0 -s -o /dev/null -w "%{http_code}" "http://${APP_SERVICE}:8080")
             echo "Try #$i => HTTP $CODE"
             if [ "$CODE" = "200" ] || [ "$CODE" = "302" ] || [ "$CODE" = "401" ] || [ "$CODE" = "403" ]; then
               echo "APP is reachable (HTTP $CODE)."
@@ -54,7 +54,7 @@ pipeline {
             sleep 2
           done
 
-          echo "App did not become reachable in time."
+          echo "App did not become ready in time."
           exit 1
         '''
       }
@@ -69,7 +69,7 @@ pipeline {
           echo "Waiting for Selenium Grid..."
 
           for i in $(seq 1 60); do
-            CODE=$(docker run --rm --network "$NET" curlimages/curl:8.6.0 -s -o /dev/null -w "%{http_code}" "http://${SELENIUM_SERVICE}:4444/status" || echo 000)
+            CODE=$(docker run --rm --network "$NET" curlimages/curl:8.6.0 -s -o /dev/null -w "%{http_code}" "http://${SELENIUM_SERVICE}:4444/status")
             echo "Try #$i => Selenium /status HTTP $CODE"
             if [ "$CODE" = "200" ]; then
               echo "Selenium Grid is ready."
@@ -84,61 +84,82 @@ pipeline {
       }
     }
 
-    stage('Selenium Scenario 1') {
+    // ✅ Selenium senaryoları: Maven'i repo kökünden (pom.xml olan yer) çalıştırıyoruz
+    stage('Selenium Scenario 1 - App Opens') {
       steps {
         sh '''
           set -e
           NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
-          docker run --rm --network "$NET" -v "$WORKSPACE:/work" -w /work/selenium-tests "$MAVEN_IMAGE" \
-            mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+
+          docker run --rm --network "$NET" \
+            -v "$WORKSPACE":/work -w /work \
+            ${MAVEN_IMAGE} mvn -q \
+            -DbaseUrl="http://${APP_SERVICE}:8080" \
+            -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
             -Dtest=Senaryo1_UygulamaAciliyorMuTest test
         '''
       }
     }
 
-    stage('Selenium Scenario 2') {
+    stage('Selenium Scenario 2 - Patient Page') {
       steps {
         sh '''
           set -e
           NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
-          docker run --rm --network "$NET" -v "$WORKSPACE:/work" -w /work/selenium-tests "$MAVEN_IMAGE" \
-            mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+
+          docker run --rm --network "$NET" \
+            -v "$WORKSPACE":/work -w /work \
+            ${MAVEN_IMAGE} mvn -q \
+            -DbaseUrl="http://${APP_SERVICE}:8080" \
+            -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
             -Dtest=Senaryo2_HastaSayfasiTest test
         '''
       }
     }
 
-    stage('Selenium Scenario 3') {
+    stage('Selenium Scenario 3 - Doctor Page') {
       steps {
         sh '''
           set -e
           NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
-          docker run --rm --network "$NET" -v "$WORKSPACE:/work" -w /work/selenium-tests "$MAVEN_IMAGE" \
-            mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+
+          docker run --rm --network "$NET" \
+            -v "$WORKSPACE":/work -w /work \
+            ${MAVEN_IMAGE} mvn -q \
+            -DbaseUrl="http://${APP_SERVICE}:8080" \
+            -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
             -Dtest=Senaryo3_DoktorSayfasiTest test
         '''
       }
     }
 
-    stage('Selenium Scenario 4') {
+    stage('Selenium Scenario 4 - UI Smoke') {
       steps {
         sh '''
           set -e
           NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
-          docker run --rm --network "$NET" -v "$WORKSPACE:/work" -w /work/selenium-tests "$MAVEN_IMAGE" \
-            mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+
+          docker run --rm --network "$NET" \
+            -v "$WORKSPACE":/work -w /work \
+            ${MAVEN_IMAGE} mvn -q \
+            -DbaseUrl="http://${APP_SERVICE}:8080" \
+            -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
             -Dtest=Senaryo4_UiSmokeTest test
         '''
       }
     }
 
-    stage('Selenium Scenario 5') {
+    stage('Selenium Scenario 5 - API Smoke') {
       steps {
         sh '''
           set -e
           NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
-          docker run --rm --network "$NET" -v "$WORKSPACE:/work" -w /work/selenium-tests "$MAVEN_IMAGE" \
-            mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+
+          docker run --rm --network "$NET" \
+            -v "$WORKSPACE":/work -w /work \
+            ${MAVEN_IMAGE} mvn -q \
+            -DbaseUrl="http://${APP_SERVICE}:8080" \
+            -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
             -Dtest=Senaryo5_ApiSmokeTest test
         '''
       }
@@ -156,3 +177,4 @@ pipeline {
     }
   }
 }
+
