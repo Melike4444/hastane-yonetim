@@ -2,25 +2,23 @@ pipeline {
   agent any
 
   environment {
-    BASE_URL   = "http://host.docker.internal:8080"
-    SELENIUM_URL = "http://host.docker.internal:4444/wd/hub"
+    DOCKER  = "/usr/local/bin/docker"
+    COMPOSE = "docker compose"
+    BASE_URL = "http://host.docker.internal:8080"
   }
 
-  options {
-    timestamps()
-  }
+  options { timestamps() }
 
   stages {
 
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Build Backend (skip tests)') {
       steps {
         sh '''
+          set -e
           chmod +x mvnw || true
           ./mvnw -DskipTests clean package
         '''
@@ -30,6 +28,7 @@ pipeline {
     stage('Docker Compose Up') {
       steps {
         sh '''
+          set -e
           docker compose down -v || true
           docker compose up -d --build
         '''
@@ -39,16 +38,22 @@ pipeline {
     stage('Wait App Ready') {
       steps {
         sh '''
+          set +e
           echo "Waiting for app to be ready at ${BASE_URL}"
           for i in $(seq 1 60); do
-            if docker run --rm curlimages/curl:8.6.0 -fsS ${BASE_URL} >/dev/null; then
-              echo "APP is ready"
+            # 403 de gelse "ayakta" say (Jenkins auth vs. yüzünden)
+            CODE=$(docker run --rm curlimages/curl:8.6.0 -s -o /dev/null -w "%{http_code}" ${BASE_URL} || echo "000")
+            echo "Try #$i => HTTP $CODE"
+
+            if [ "$CODE" = "200" ] || [ "$CODE" = "302" ] || [ "$CODE" = "401" ] || [ "$CODE" = "403" ]; then
+              echo "APP is reachable (HTTP $CODE). Continuing..."
               exit 0
             fi
-            echo "Not ready yet... ($i)"
+
             sleep 2
           done
-          echo "APP did not become ready"
+
+          echo "APP did not become reachable"
           exit 1
         '''
       }
@@ -57,12 +62,9 @@ pipeline {
     stage('Selenium Scenario 1') {
       steps {
         sh '''
+          set -e
           cd selenium-tests
-          ../mvnw \
-            -DbaseUrl=${BASE_URL} \
-            -DremoteUrl=${SELENIUM_URL} \
-            -Dtest=Senaryo1_UygulamaAciliyorMuTest \
-            test
+          ../mvnw -q -Dtest=Senaryo1_UygulamaAciliyorMuTest test
         '''
       }
     }
@@ -70,12 +72,9 @@ pipeline {
     stage('Selenium Scenario 2') {
       steps {
         sh '''
+          set -e
           cd selenium-tests
-          ../mvnw \
-            -DbaseUrl=${BASE_URL} \
-            -DremoteUrl=${SELENIUM_URL} \
-            -Dtest=Senaryo2_DoktorlarEndpointTest \
-            test
+          ../mvnw -q -Dtest=Senaryo2_* test
         '''
       }
     }
@@ -83,12 +82,9 @@ pipeline {
     stage('Selenium Scenario 3') {
       steps {
         sh '''
+          set -e
           cd selenium-tests
-          ../mvnw \
-            -DbaseUrl=${BASE_URL} \
-            -DremoteUrl=${SELENIUM_URL} \
-            -Dtest=Senaryo3_RandevularEndpointTest \
-            test
+          ../mvnw -q -Dtest=Senaryo3_* test
         '''
       }
     }
@@ -96,12 +92,9 @@ pipeline {
     stage('Selenium Scenario 4') {
       steps {
         sh '''
+          set -e
           cd selenium-tests
-          ../mvnw \
-            -DbaseUrl=${BASE_URL} \
-            -DremoteUrl=${SELENIUM_URL} \
-            -Dtest=Senaryo4_UiSmokeTest \
-            test
+          ../mvnw -q -Dtest=Senaryo4_* test
         '''
       }
     }
@@ -109,10 +102,9 @@ pipeline {
     stage('Selenium Scenario 5') {
       steps {
         sh '''
+          set -e
           cd selenium-tests
-          ../mvnw \
-            -Dtest=Senaryo5_ApiSmokeTest \
-            test
+          ../mvnw -q -Dtest=Senaryo5_* test
         '''
       }
     }
@@ -123,10 +115,9 @@ pipeline {
       sh '''
         docker compose ps || true
         docker compose logs --no-color | tail -n 200 || true
+        docker compose down -v || true
       '''
-    }
-    cleanup {
-      sh 'docker compose down -v || true'
+      junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
     }
   }
 }
