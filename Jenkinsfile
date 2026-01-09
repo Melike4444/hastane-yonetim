@@ -1,9 +1,7 @@
 pipeline {
   agent any
 
-  options {
-    timestamps()
-  }
+  options { timestamps() }
 
   environment {
     MAVEN_OPTS = "-Dmaven.repo.local=.m2"
@@ -12,14 +10,13 @@ pipeline {
   stages {
 
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Build') {
       steps {
         sh '''
+          set -e
           chmod +x mvnw
           ./mvnw -q -DskipTests clean package
         '''
@@ -29,12 +26,13 @@ pipeline {
     stage('Unit Tests') {
       steps {
         sh '''
-          ./mvnw -q test
+          set -e
+          ./mvnw -q test -Dtest='!*selenium*'
         '''
       }
       post {
         always {
-          junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+          junit '**/target/surefire-reports/*.xml'
         }
       }
     }
@@ -42,45 +40,25 @@ pipeline {
     stage('Integration Tests') {
       steps {
         sh '''
-          ./mvnw -q failsafe:integration-test failsafe:verify
+          set -e
+          ./mvnw -q failsafe:integration-test failsafe:verify -Dtest='!*selenium*'
         '''
       }
       post {
         always {
-          junit allowEmptyResults: true, testResults: '**/target/failsafe-reports/*.xml'
+          junit '**/target/failsafe-reports/*.xml'
         }
       }
     }
 
     stage('Docker Build') {
       steps {
-        sh '''
-          docker build -t hastane-yonetim:latest .
-        '''
+        sh 'docker build -t hastane-yonetim:latest .'
       }
     }
-
-    // 🔴 Selenium şimdilik kapalı (ileride açacağız)
-    /*
-    stage('Selenium UI Tests') {
-      steps {
-        sh '''
-          docker compose up -d
-          ./mvnw -pl selenium-tests test
-        '''
-      }
-    }
-    */
-
   }
 
   post {
-    success {
-      echo '✅ PIPELINE SUCCESS'
-    }
-    failure {
-      echo '❌ PIPELINE FAILED'
-    }
     always {
       sh 'docker compose down -v || true'
     }
