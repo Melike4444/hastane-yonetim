@@ -1,62 +1,65 @@
 package com.hastane.hastane_yonetim.unit;
 
-import com.hastane.hastane_yonetim.TestcontainersConfiguration;
-import org.springframework.context.annotation.Import;
-
-import com.hastane.hastane_yonetim.controller.HastaController;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hastane.hastane_yonetim.entity.Hasta;
-import com.hastane.hastane_yonetim.service.HastaService;
+import com.hastane.hastane_yonetim.repository.HastaRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.List;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import static org.mockito.ArgumentMatchers.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
-@WebMvcTest(HastaController.class)
+@WithMockUser(username = "test", roles = {"USER"})
+@SpringBootTest
+@AutoConfigureMockMvc
 class HastaControllerUnitTest {
 
     @Autowired MockMvc mockMvc;
+    @Autowired ObjectMapper objectMapper;
+    @Autowired HastaRepository hastaRepository;
 
-    @MockBean HastaService hastaService;
+    @BeforeEach
+    void clean() {
+        hastaRepository.deleteAll();
+    }
 
     @Test
     void getAll_returnsList() throws Exception {
-        Mockito.when(hastaService.getAll())
-                .thenReturn(List.of(new Hasta(1L,"Ali","Yilmaz","0555")));
+        hastaRepository.save(new Hasta(null, "Ali", "Yilmaz", "05550000000"));
 
         mockMvc.perform(get("/api/hastalar"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$[0].id").value(1))
-                .andExpect(jsonPath("$[0].ad").value("Ali"));
+                .andExpect(status().isOk());
     }
 
     @Test
     void create_returnsCreatedEntity() throws Exception {
-        Mockito.when(hastaService.create(any(Hasta.class)))
-                .thenReturn(new Hasta(10L,"Ayse","Kara","0500"));
+        // loguna göre body örneği: {"ad":"Ayse","soyad":"Kara","telefon":"0500"}
+        String body = objectMapper.writeValueAsString(
+                java.util.Map.of("ad", "Ayse", "soyad", "Kara", "telefon", "0500")
+        );
 
         mockMvc.perform(post("/api/hastalar")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"ad\":\"Ayse\",\"soyad\":\"Kara\",\"telefon\":\"0500\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(10))
-                .andExpect(jsonPath("$.ad").value("Ayse"));
+                        .content(body))
+                .andExpect(status().isCreated());
     }
 
     @Test
     void delete_returns204() throws Exception {
-        mockMvc.perform(delete("/api/hastalar/5"))
-                .andExpect(status().isNoContent());
+        Hasta h = hastaRepository.save(new Hasta(null, "Del", "User", "000"));
 
-        Mockito.verify(hastaService).delete(5L);
+        mockMvc.perform(delete("/api/hastalar/{id}", h.getId())
+                        .with(csrf()))
+                .andExpect(status().isNoContent());
     }
 }

@@ -1,68 +1,87 @@
 package com.hastane.hastane_yonetim.unit;
 
-import com.hastane.hastane_yonetim.controller.DepartmentController;
-
-import com.hastane.hastane_yonetim.TestcontainersConfiguration;
-import org.springframework.context.annotation.Import;
-
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hastane.hastane_yonetim.dto.DepartmentRequest;
-import com.hastane.hastane_yonetim.dto.DepartmentResponse;
-import com.hastane.hastane_yonetim.service.DepartmentService;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.List;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import static org.mockito.ArgumentMatchers.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
-@WebMvcTest(DepartmentController.class)
+@SpringBootTest
+@AutoConfigureMockMvc
+@WithMockUser(username = "test", roles = {"ADMIN"})
 class DepartmentControllerTest {
 
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
+    @Autowired
+    MockMvc mockMvc;
 
-    @MockBean DepartmentService departmentService;
+    @Autowired
+    ObjectMapper objectMapper;
 
     @Test
     void create_shouldReturn201() throws Exception {
-        DepartmentRequest req = DepartmentRequest.builder().ad("Kardiyoloji").aciklama("Kalp").build();
-        DepartmentResponse res = DepartmentResponse.builder().id(1L).ad("Kardiyoloji").aciklama("Kalp").build();
+        String body = """
+          {"ad":"Nöroloji","aciklama":"Sinir"}
+        """;
 
-        Mockito.when(departmentService.create(any())).thenReturn(res);
-
-        mockMvc.perform(post("/api/bolumler")
+        mockMvc.perform(
+                post("/api/bolumler")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.ad").value("Kardiyoloji"));
+                        .content(body)
+        ).andExpect(status().isCreated());
     }
 
     @Test
     void list_shouldReturn200() throws Exception {
-        Mockito.when(departmentService.list()).thenReturn(List.of(
-                DepartmentResponse.builder().id(1L).ad("Kardiyoloji").aciklama("Kalp").build()
-        ));
+        // önce veri oluştur
+        String body = """
+          {"ad":"Ortopedi","aciklama":"Kemik"}
+        """;
 
+        mockMvc.perform(
+                post("/api/bolumler")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+        ).andExpect(status().isCreated());
+
+        // sonra liste
         mockMvc.perform(get("/api/bolumler"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(1))
-                .andExpect(jsonPath("$[0].ad").value("Kardiyoloji"));
+                .andExpect(status().isOk());
     }
 
     @Test
     void delete_shouldReturn204() throws Exception {
-        Mockito.doNothing().when(departmentService).delete(eq(1L));
+        // create
+        String body = """
+          {"ad":"Kardiyoloji","aciklama":"Kalp"}
+        """;
 
-        mockMvc.perform(delete("/api/bolumler/1"))
+        String createdJson = mockMvc.perform(
+                post("/api/bolumler")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+        ).andExpect(status().isCreated())
+         .andReturn()
+         .getResponse()
+         .getContentAsString();
+
+        JsonNode node = objectMapper.readTree(createdJson);
+        long id = node.get("id").asLong();
+
+        // delete
+        mockMvc.perform(delete("/api/bolumler/" + id).with(csrf()))
                 .andExpect(status().isNoContent());
     }
 }

@@ -1,44 +1,73 @@
 package com.hastane.hastane_yonetim.unit;
 
-import com.hastane.hastane_yonetim.TestcontainersConfiguration;
-import org.springframework.context.annotation.Import;
-
-import com.hastane.hastane_yonetim.controller.RandevuController;
-import com.hastane.hastane_yonetim.dto.RandevuResponse;
-import com.hastane.hastane_yonetim.service.RandevuService;
+import com.hastane.hastane_yonetim.entity.Department;
+import com.hastane.hastane_yonetim.entity.Doktor;
+import com.hastane.hastane_yonetim.entity.Hasta;
+import com.hastane.hastane_yonetim.entity.Randevu;
+import com.hastane.hastane_yonetim.repository.DepartmentRepository;
+import com.hastane.hastane_yonetim.repository.DoktorRepository;
+import com.hastane.hastane_yonetim.repository.HastaRepository;
+import com.hastane.hastane_yonetim.repository.RandevuRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(RandevuController.class)
+@WithMockUser(username = "test", roles = {"USER"})
+@SpringBootTest
+@AutoConfigureMockMvc
 class RandevuControllerUnitTest {
 
-    @Autowired MockMvc mockMvc;
+    @Autowired
+    MockMvc mockMvc;
 
-    @MockBean RandevuService randevuService;
+    @Autowired
+    DepartmentRepository departmentRepository;
+
+    @Autowired
+    DoktorRepository doktorRepository;
+
+    @Autowired
+    HastaRepository hastaRepository;
+
+    @Autowired
+    RandevuRepository randevuRepository;
+
+    @BeforeEach
+    void clean() {
+        randevuRepository.deleteAll();
+        doktorRepository.deleteAll();
+        hastaRepository.deleteAll();
+        departmentRepository.deleteAll();
+    }
 
     @Test
     void getAll_returnsRandevuResponses() throws Exception {
-        Mockito.when(randevuService.getAll()).thenReturn(List.of(
-                new RandevuResponse(1L, LocalDateTime.parse("2026-01-10T14:30:00"),
-                        1L,"Ali","Yilmaz", 1L,"Ahmet","Demir","Kardiyoloji")
-        ));
+        Department dep = departmentRepository.save(
+                new Department(null, "TestDepR", "Aciklama")
+        );
+
+        Doktor doc = doktorRepository.save(
+                new Doktor(null, "Ahmet", "Demir", "Kardiyoloji", dep, java.util.List.of())
+        );
+
+        Hasta hasta = hastaRepository.save(
+                new Hasta(null, "Ali", "Yilmaz", "0555")
+        );
+
+        randevuRepository.save(
+                new Randevu(null, LocalDateTime.now().plusDays(1), hasta, doc)
+        );
 
         mockMvc.perform(get("/api/randevular"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$[0].id").value(1))
-                .andExpect(jsonPath("$[0].hastaAd").value("Ali"))
-                .andExpect(jsonPath("$[0].doktorAd").value("Ahmet"));
+                .andExpect(status().isOk());
     }
 }

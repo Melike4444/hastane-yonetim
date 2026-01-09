@@ -4,8 +4,8 @@ import com.hastane.hastane_yonetim.dto.MuayeneRequest;
 import com.hastane.hastane_yonetim.dto.MuayeneResponse;
 import com.hastane.hastane_yonetim.service.MuayeneService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,7 +23,7 @@ public class MuayeneController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<MuayeneResponse> getById( Long id) {
+    public ResponseEntity<MuayeneResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(muayeneService.getById(id));
     }
 
@@ -33,7 +33,8 @@ public class MuayeneController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<MuayeneResponse> update( Long id,  MuayeneRequest request) {
+    public ResponseEntity<MuayeneResponse> update(@PathVariable Long id,
+                                                  @RequestBody MuayeneRequest request) {
         return ResponseEntity.ok(muayeneService.update(id, request));
     }
 
@@ -43,4 +44,3 @@ public class MuayeneController {
         return ResponseEntity.noContent().build();
     }
 }
-

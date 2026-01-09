@@ -1,7 +1,12 @@
 package com.hastane.hastane_yonetim.controller;
 
+import com.hastane.hastane_yonetim.dto.ReceteRequest;
 import com.hastane.hastane_yonetim.entity.Recete;
 import com.hastane.hastane_yonetim.service.ReceteService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -9,21 +14,19 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/receteler")
 @CrossOrigin(origins = "*")
+@RequiredArgsConstructor
 public class ReceteController {
 
     private final ReceteService receteService;
 
-    public ReceteController(ReceteService receteService) {
-        this.receteService = receteService;
-    }
-
     @GetMapping
-    public List<Recete> getAll() {
-        return receteService.tumReceteler();
+    public ResponseEntity<List<Recete>> getAll() {
+        return ResponseEntity.ok(receteService.tumReceteler());
     }
 
     @PostMapping
-    public Recete create(@RequestBody Recete recete) {
-        return receteService.kaydet(recete);
+    public ResponseEntity<Recete> create(@Valid @RequestBody ReceteRequest request) {
+        Recete saved = receteService.kaydetDto(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 }
