@@ -1,39 +1,33 @@
+cd ~/hastane-yonetim
+
+cat > Jenkinsfile <<'EOF'
 pipeline {
   agent any
 
-  environment {
-    BASE_URL = "http://host.docker.internal:8080"
-    SELENIUM_GRID_URL = "http://hastane-yonetim-selenium:4444/wd/hub"
-  }
+  options { timestamps() }
 
-  options {
-    timestamps()
+  environment {
+    // Compose içinden backend'e servis adıyla erişeceğiz:
+    // docker-compose.yml'de backend servis adın "app" değilse burayı değiştir.
+    APP_SERVICE = "app"
+    SELENIUM_SERVICE = "hastane-yonetim-selenium"
+
+    // Selenium-tests çalıştıracağımız maven image
+    MAVEN_IMAGE = "maven:3.9.9-eclipse-temurin-21"
   }
 
   stages {
 
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
-    stage('Build Backend (skip tests)') {
+    stage('Backend: Build + Unit + Integration (verify)') {
       steps {
         sh '''
           set -e
           chmod +x mvnw || true
-          ./mvnw -DskipTests clean package
-        '''
-      }
-    }
-
-    stage('Backend: Tests (Unit+Integration)') {
-      steps {
-        sh '''
-          set -e
-          chmod +x mvnw || true
-          ./mvnw test
+          ./mvnw -B -ntp clean verify
         '''
       }
     }
@@ -49,20 +43,24 @@ pipeline {
       }
     }
 
-    stage('Wait App Ready') {
+    stage('Wait App Ready (inside compose network)') {
       steps {
         sh '''
           set +e
-          echo "Waiting for app to be reachable at ${BASE_URL}"
+          NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
+          echo "Detected network: $NET"
+          echo "Waiting for app at http://${APP_SERVICE}:8080 ..."
+
           for i in $(seq 1 60); do
-            CODE=$(docker run --rm curlimages/curl:8.6.0 -s -o /dev/null -w "%{http_code}" "${BASE_URL}" || echo 000)
+            CODE=$(docker run --rm --network "$NET" curlimages/curl:8.6.0 -s -o /dev/null -w "%{http_code}" "http://${APP_SERVICE}:8080" || echo 000)
             echo "Try #$i => HTTP $CODE"
             if [ "$CODE" = "200" ] || [ "$CODE" = "302" ] || [ "$CODE" = "401" ] || [ "$CODE" = "403" ]; then
-              echo "APP is reachable (HTTP $CODE). Continuing..."
+              echo "APP is reachable (HTTP $CODE)."
               exit 0
             fi
             sleep 2
           done
+
           echo "App did not become reachable in time."
           exit 1
         '''
@@ -73,13 +71,12 @@ pipeline {
       steps {
         sh '''
           set +e
-          echo "Waiting for Selenium Grid to be ready..."
-          # compose network adını otomatik bulalım (docker compose default network)
           NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
           echo "Detected network: $NET"
+          echo "Waiting for Selenium Grid..."
 
           for i in $(seq 1 60); do
-            CODE=$(docker run --rm --network "$NET" curlimages/curl:8.6.0 -s -o /dev/null -w "%{http_code}" "http://hastane-yonetim-selenium:4444/status" || echo 000)
+            CODE=$(docker run --rm --network "$NET" curlimages/curl:8.6.0 -s -o /dev/null -w "%{http_code}" "http://${SELENIUM_SERVICE}:4444/status" || echo 000)
             echo "Try #$i => Selenium /status HTTP $CODE"
             if [ "$CODE" = "200" ]; then
               echo "Selenium Grid is ready."
@@ -98,8 +95,11 @@ pipeline {
       steps {
         sh '''
           set -e
-          cd selenium-tests
-          ../mvnw -q -Dtest=Senaryo1_UygulamaAciliyorMuTest test
+          NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
+          docker run --rm --network "$NET" \
+            -v "$WORKSPACE:/work" -w /work/selenium-tests \
+            "$MAVEN_IMAGE" mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+            -Dtest=Senaryo1_UygulamaAciliyorMuTest test
         '''
       }
     }
@@ -108,8 +108,11 @@ pipeline {
       steps {
         sh '''
           set -e
-          cd selenium-tests
-          ../mvnw -q -Dtest=Senaryo2_HastaSayfasiTest test
+          NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
+          docker run --rm --network "$NET" \
+            -v "$WORKSPACE:/work" -w /work/selenium-tests \
+            "$MAVEN_IMAGE" mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+            -Dtest=Senaryo2_HastaSayfasiTest test
         '''
       }
     }
@@ -118,8 +121,11 @@ pipeline {
       steps {
         sh '''
           set -e
-          cd selenium-tests
-          ../mvnw -q -Dtest=Senaryo3_DoktorSayfasiTest test
+          NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
+          docker run --rm --network "$NET" \
+            -v "$WORKSPACE:/work" -w /work/selenium-tests \
+            "$MAVEN_IMAGE" mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+            -Dtest=Senaryo3_DoktorSayfasiTest test
         '''
       }
     }
@@ -128,8 +134,11 @@ pipeline {
       steps {
         sh '''
           set -e
-          cd selenium-tests
-          ../mvnw -q -Dtest=Senaryo4_UiSmokeTest test
+          NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
+          docker run --rm --network "$NET" \
+            -v "$WORKSPACE:/work" -w /work/selenium-tests \
+            "$MAVEN_IMAGE" mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+            -Dtest=Senaryo4_UiSmokeTest test
         '''
       }
     }
@@ -138,8 +147,11 @@ pipeline {
       steps {
         sh '''
           set -e
-          cd selenium-tests
-          ../mvnw -q -Dtest=Senaryo5_ApiSmokeTest test
+          NET=$(docker compose ps -q | head -n 1 | xargs docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n 1)
+          docker run --rm --network "$NET" \
+            -v "$WORKSPACE:/work" -w /work/selenium-tests \
+            "$MAVEN_IMAGE" mvn -q -DbaseUrl="http://${APP_SERVICE}:8080" -DremoteUrl="http://${SELENIUM_SERVICE}:4444/wd/hub" \
+            -Dtest=Senaryo5_ApiSmokeTest test
         '''
       }
     }
@@ -152,7 +164,8 @@ pipeline {
         docker compose logs --no-color | tail -n 200 || true
         docker compose down -v || true
       '''
-      junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+      junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml, **/target/failsafe-reports/*.xml'
     }
   }
 }
+EOF
