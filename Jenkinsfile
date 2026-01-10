@@ -5,10 +5,6 @@ pipeline {
     timestamps()
   }
 
-  environment {
-    MAVEN_OPTS = "-Dmaven.repo.local=.m2"
-  }
-
   stages {
 
     stage('Checkout') {
@@ -17,40 +13,46 @@ pipeline {
       }
     }
 
-    stage('Build') {
-      steps {
-        sh '''
-          set -e
-          chmod +x mvnw
-          ./mvnw -q -DskipTests clean package
-        '''
-      }
-    }
-
     stage('Unit Tests (no selenium-tests)') {
       steps {
         sh '''
           set -e
+          chmod +x mvnw || true
           rm -rf selenium-tests/target || true
-          //  selenium-tests modülünü çalıştırma
           ./mvnw -q -pl '!selenium-tests' -am test
         '''
       }
       post {
         always {
-          //  SADECE root module raporlarını topla (selenium raporları asla gelmesin)
-          junit allowEmptyResults: true, testResults: 'target/surefire-reports
+          junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+        }
+      }
+    }
 
+    stage('Integration Tests (no selenium-tests)') {
+      steps {
+        sh '''
+          set -e
+          chmod +x mvnw || true
+          rm -rf selenium-tests/target || true
+          ./mvnw -q -pl '!selenium-tests' -am failsafe:integration-test failsafe:verify
+        '''
+      }
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: '**/target/failsafe-reports/*.xml'
+        }
+      }
+    }
 
+    stage('Docker Build') {
+      steps {
+        sh 'docker build -t hastane-yonetim:latest .'
+      }
+    }
   }
 
   post {
-    success {
-      echo '✅ PIPELINE SUCCESS'
-    }
-    failure {
-      echo '❌ PIPELINE FAILED'
-    }
     always {
       sh 'docker compose down -v || true'
     }
