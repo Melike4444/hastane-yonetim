@@ -32,13 +32,13 @@ pipeline {
         sh '''
           set -e
           rm -rf selenium-tests/target || true
-          # selenium-tests modülünü çalıştırma
+          //  selenium-tests modülünü çalıştırma
           ./mvnw -q -pl '!selenium-tests' -am test
         '''
       }
       post {
         always {
-          # SADECE root module raporlarını topla (selenium raporları asla gelmesin)
+          //  SADECE root module raporlarını topla (selenium raporları asla gelmesin)
           junit allowEmptyResults: true, testResults: 'target/surefire-reports
 
 
