@@ -13,13 +13,12 @@ pipeline {
       }
     }
 
-    stage('Unit Tests (no selenium-tests)') {
+    stage('Unit Tests') {
       steps {
         sh '''
           set -e
           chmod +x mvnw || true
-          rm -rf selenium-tests/target || true
-          ./mvnw -q -pl '!selenium-tests' -am test
+          ./mvnw -q test
         '''
       }
       post {
@@ -29,13 +28,12 @@ pipeline {
       }
     }
 
-    stage('Integration Tests (no selenium-tests)') {
+    stage('Integration Tests') {
       steps {
         sh '''
           set -e
           chmod +x mvnw || true
-          rm -rf selenium-tests/target || true
-          ./mvnw -q -pl '!selenium-tests' -am failsafe:integration-test failsafe:verify
+          ./mvnw -q failsafe:integration-test failsafe:verify
         '''
       }
       post {
